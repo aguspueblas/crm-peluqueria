@@ -2,12 +2,21 @@
 
 const express = require('express');
 const router = express.Router();
-const clientesService = require('../services/clientes.service');
+const service = require('../services/clientes.service');
 
-router.get('/', async (req, res, next) => {
+// /identificar debe ir antes de /:id para que Express no lo interprete como un ID
+router.post('/identificar', async (req, res, next) => {
   try {
-    const clientes = await clientesService.getAll();
-    res.json(clientes);
+    const resultado = await service.identificar(req.body);
+    res.status(resultado.es_nuevo ? 201 : 200).json(resultado);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/', async (_req, res, next) => {
+  try {
+    res.json(await service.getAll());
   } catch (err) {
     next(err);
   }
@@ -15,8 +24,7 @@ router.get('/', async (req, res, next) => {
 
 router.get('/:id', async (req, res, next) => {
   try {
-    const cliente = await clientesService.getById(req.params.id);
-    res.json(cliente);
+    res.json(await service.getById(req.params.id));
   } catch (err) {
     next(err);
   }
@@ -24,8 +32,7 @@ router.get('/:id', async (req, res, next) => {
 
 router.post('/', async (req, res, next) => {
   try {
-    const cliente = await clientesService.create(req.body);
-    res.status(201).json(cliente);
+    res.status(201).json(await service.create(req.body));
   } catch (err) {
     next(err);
   }
@@ -33,8 +40,7 @@ router.post('/', async (req, res, next) => {
 
 router.put('/:id', async (req, res, next) => {
   try {
-    const cliente = await clientesService.update(req.params.id, req.body);
-    res.json(cliente);
+    res.json(await service.update(req.params.id, req.body));
   } catch (err) {
     next(err);
   }

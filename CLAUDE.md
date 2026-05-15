@@ -279,7 +279,54 @@ Response 409: existen turnos futuros en ese bloque horario
 
 ---
 
-## 7. Metodología de trabajo
+## 7. Módulo Clientes — SPEC APROBADA
+
+**Prefijo:** `/api/clientes`
+**Estado:** APPROVED — implementado
+
+### Endpoints
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | /api/clientes | Listar clientes |
+| GET | /api/clientes/:id | Obtener por ID |
+| POST | /api/clientes | Crear cliente |
+| PUT | /api/clientes/:id | Actualizar datos |
+| POST | /api/clientes/identificar | Find-or-create por teléfono (uso principal de la IA) |
+
+### POST /api/clientes/identificar
+
+Endpoint diseñado para ser llamado por la IA al inicio de cada conversación de WhatsApp.
+Los datos vienen directamente del webhook: `wa_id` como `telefono`, `profile.name` como `nombre`.
+
+```json
+// Request
+{ "telefono": "16505551234", "nombre": "Sheena Nelson" }
+
+// Response 200 — cliente existente
+{ "id": 3, "nombre": "Sheena Nelson", "telefono": "16505551234", "email": null, "created_at": "...", "es_nuevo": false }
+
+// Response 201 — cliente nuevo
+{ "id": 4, "nombre": "Sheena Nelson", "telefono": "16505551234", "email": null, "created_at": "...", "es_nuevo": true }
+```
+
+> `es_nuevo: true` permite a la IA personalizar el saludo para clientes nuevos vs. recurrentes.
+
+### Reglas de negocio
+
+- **RN-1:** `telefono` es único — no pueden existir dos clientes con el mismo número.
+- **RN-2:** `telefono` y `nombre` son obligatorios al crear.
+- **RN-3:** `/identificar` usa `telefono` como clave. Si existe, lo devuelve sin modificar el nombre. Si no existe, lo crea.
+- **RN-4:** `/identificar` nunca sobreescribe el nombre — si el cliente fue renombrado manualmente, ese nombre prevalece.
+
+### Fuera de scope (MVP)
+- Historial de turnos embebido en la respuesta (consultar por `GET /api/turnos?cliente_id=`)
+- Bloqueo de clientes
+- Campos adicionales (dirección, notas)
+
+---
+
+## 8. Metodología de trabajo
 
 **SDD (Spec-Driven Development):**
 1. Antes de implementar cualquier módulo, definir la spec juntos
@@ -295,7 +342,7 @@ Response 409: existen turnos futuros en ese bloque horario
 
 | Módulo | Estado | Notas |
 |---|---|---|
-| Clientes | SPEC pendiente | CRUD básico, identificación por teléfono (clave para WhatsApp) |
+| Clientes | SPEC aprobada e implementada | CRUD básico, identificación por teléfono (clave para WhatsApp) |
 | Disponibilidad | SPEC pendiente | Endpoint más crítico para la IA — devuelve slots libres calculados |
 | Servicios | Sin spec | Lectura de los servicios disponibles (GET), sin ABM por ahora |
 

@@ -1,43 +1,50 @@
 'use strict';
 
-const pool = require('../config/db');
+const { Cliente } = require('../models');
 
 async function getAll() {
-  const result = await pool.query('SELECT * FROM clientes ORDER BY nombre ASC');
-  return result.rows;
+  return Cliente.findAll({ order: [['nombre', 'ASC']] });
 }
 
 async function getById(id) {
-  const result = await pool.query('SELECT * FROM clientes WHERE id = $1', [id]);
-  if (result.rows.length === 0) {
-    const err = new Error('Cliente no encontrado');
-    err.status = 404;
-    throw err;
+  const cliente = await Cliente.findByPk(id);
+  if (!cliente) throw notFound('Cliente no encontrado');
+  return cliente;
+}
+
+async function create({ nombre, telefono, email }) {
+  if (!nombre || !telefono) throw badRequest('nombre y telefono son requeridos');
+
+  const existe = await Cliente.findOne({ where: { telefono } });
+  if (existe) throw conflict(`Ya existe un cliente con el teléfono ${telefono}`);
+
+  return Cliente.create({ nombre, telefono, email });
+}
+
+async function update(id, { nombre, telefono, email }) {
+  const cliente = await getById(id);
+
+  if (telefono && telefono !== cliente.telefono) {
+    const existe = await Cliente.findOne({ where: { telefono } });
+    if (existe) throw conflict(`Ya existe un cliente con el teléfono ${telefono}`);
   }
-  return result.rows[0];
+
+  await cliente.update({ nombre, telefono, email });
+  return cliente;
 }
 
-async function create(data) {
-  const { nombre, telefono, email } = data;
-  const result = await pool.query(
-    'INSERT INTO clientes (nombre, telefono, email) VALUES ($1, $2, $3) RETURNING *',
-    [nombre, telefono, email]
-  );
-  return result.rows[0];
+async function identificar({ telefono, nombre }) {
+  if (!telefono || !nombre) throw badRequest('telefono y nombre son requeridos');
+
+  const existente = await Cliente.findOne({ where: { telefono } });
+  if (existente) return { ...existente.toJSON(), es_nuevo: false };
+
+  const nuevo = await Cliente.create({ nombre, telefono });
+  return { ...nuevo.toJSON(), es_nuevo: true };
 }
 
-async function update(id, data) {
-  const { nombre, telefono, email } = data;
-  const result = await pool.query(
-    'UPDATE clientes SET nombre = COALESCE($1, nombre), telefono = COALESCE($2, telefono), email = COALESCE($3, email) WHERE id = $4 RETURNING *',
-    [nombre, telefono, email, id]
-  );
-  if (result.rows.length === 0) {
-    const err = new Error('Cliente no encontrado');
-    err.status = 404;
-    throw err;
-  }
-  return result.rows[0];
-}
+function notFound(msg)  { const e = new Error(msg); e.status = 404; return e; }
+function badRequest(msg){ const e = new Error(msg); e.status = 400; return e; }
+function conflict(msg)  { const e = new Error(msg); e.status = 409; return e; }
 
-module.exports = { getAll, getById, create, update };
+module.exports = { getAll, getById, create, update, identificar };
