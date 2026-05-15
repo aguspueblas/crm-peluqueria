@@ -9,7 +9,7 @@ const Turno = sequelize.define('Turno', {
   profesional_id: { type: DataTypes.INTEGER, allowNull: false },
   servicio_id:    { type: DataTypes.INTEGER, allowNull: false },
   fecha_hora:     { type: DataTypes.DATE, allowNull: false },
-  estado:         { type: DataTypes.STRING(20), defaultValue: 'pendiente' },
+  estado:         { type: DataTypes.ENUM('pendiente', 'confirmado', 'cancelado'), defaultValue: 'pendiente' },
   created_at:     { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
 }, {
   tableName: 'turnos',

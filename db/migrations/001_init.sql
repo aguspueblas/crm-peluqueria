@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS turnos (
   fecha_hora      TIMESTAMP NOT NULL,
   estado          VARCHAR(20) NOT NULL DEFAULT 'pendiente',
   created_at      TIMESTAMP DEFAULT NOW(),
-  CONSTRAINT estado_valido CHECK (estado IN ('pendiente', 'confirmado', 'cancelado', 'completado'))
+  CONSTRAINT estado_valido CHECK (estado IN ('pendiente', 'confirmado', 'cancelado'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_turnos_fecha ON turnos (fecha_hora);

@@ -2,12 +2,19 @@
 
 const express = require('express');
 const router = express.Router();
-const turnosService = require('../services/turnos.service');
+const service = require('../services/turnos.service');
 
 router.get('/', async (req, res, next) => {
   try {
-    const turnos = await turnosService.getAll();
-    res.json(turnos);
+    res.json(await service.getAll(req.query));
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/:id', async (req, res, next) => {
+  try {
+    res.json(await service.getById(req.params.id));
   } catch (err) {
     next(err);
   }
@@ -15,8 +22,7 @@ router.get('/', async (req, res, next) => {
 
 router.post('/', async (req, res, next) => {
   try {
-    const turno = await turnosService.create(req.body);
-    res.status(201).json(turno);
+    res.status(201).json(await service.create(req.body));
   } catch (err) {
     next(err);
   }
@@ -24,8 +30,7 @@ router.post('/', async (req, res, next) => {
 
 router.put('/:id', async (req, res, next) => {
   try {
-    const turno = await turnosService.update(req.params.id, req.body);
-    res.json(turno);
+    res.json(await service.update(req.params.id, req.body));
   } catch (err) {
     next(err);
   }
@@ -33,7 +38,7 @@ router.put('/:id', async (req, res, next) => {
 
 router.delete('/:id', async (req, res, next) => {
   try {
-    await turnosService.cancel(req.params.id);
+    await service.cancel(req.params.id);
     res.status(204).send();
   } catch (err) {
     next(err);

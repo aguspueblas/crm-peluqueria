@@ -88,7 +88,7 @@ servicios
 
 turnos
   id, cliente_id, profesional_id, servicio_id, fecha_hora, estado, created_at
-  — estado: pendiente | confirmado | cancelado | completado
+  — estado: pendiente | confirmado | cancelado
 ```
 
 ---
@@ -163,9 +163,7 @@ Response 404: { "error": "Turno no encontrado" }
 ```
 pendiente  → confirmado
 pendiente  → cancelado
-confirmado → completado
 confirmado → cancelado
-completado → (bloqueado)
 cancelado  → (bloqueado)
 ```
 
@@ -181,11 +179,11 @@ cancelado  → (bloqueado)
 
 5. **Sin solapamiento del profesional:** Desde `fecha_hora` hasta `fecha_hora + duracion_minutos del servicio`, el profesional no puede tener otro turno con estado `pendiente` o `confirmado`. Error 409 si hay conflicto.
 
-6. **Sin solapamiento del cliente:** El cliente no puede tener otro turno activo en el mismo rango horario. Error 409 si hay conflicto.
+6. **Sin solapamiento del cliente:** El cliente no puede tener otro turno activo en el mismo rango horario, independientemente del profesional. Error 409 si hay conflicto.
 
 7. **Modificar turno:** Al cambiar `fecha_hora`, se revalidan las reglas 2, 3, 4, 5 y 6.
 
-8. **No se pueden reabrir:** Un turno `cancelado` o `completado` no puede cambiar de estado.
+8. **No se puede reabrir un turno cancelado:** Un turno `cancelado` no puede cambiar de estado.
 
 9. **Soft delete:** DELETE pone `estado = 'cancelado'`. Nunca se borran registros.
 
