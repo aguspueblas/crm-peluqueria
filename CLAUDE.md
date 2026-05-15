@@ -14,10 +14,32 @@ Los clientes interactúan por WhatsApp; una IA (Claude API) interpreta los mensa
 ## 2. Stack y convenciones
 
 - **Runtime:** Node.js + Express
-- **Base de datos:** PostgreSQL (driver: `pg`, pool de conexiones)
+- **Base de datos:** PostgreSQL
+- **ORM:** Sequelize — toda interacción con la DB se hace a través de Modelos Sequelize, nunca con queries SQL en strings
 - **Lenguaje:** JavaScript, CommonJS (`require`/`module.exports`), `'use strict'` en todos los archivos
 - **Variables de entorno:** `dotenv`, nunca hardcodear credenciales
-- **No usar:** TypeScript, ES Modules, ORMs (Sequelize, Prisma), frameworks adicionales sin consultar
+- **No usar:** TypeScript, ES Modules, Prisma, otros ORMs, frameworks adicionales sin consultar
+
+### Estructura de Sequelize
+
+```
+src/
+  config/sequelize.js   — instancia Sequelize (dialecto postgres, vars de entorno)
+  models/
+    index.js            — carga modelos y define todas las asociaciones
+    Profesional.js      — tabla profesionales
+    ProfesionalHorario.js — tabla profesional_horarios
+    Cliente.js          — tabla clientes
+    Servicio.js         — tabla servicios
+    Turno.js            — tabla turnos
+```
+
+**Convenciones de modelos:**
+- `timestamps: false` en todos (excepto donde existe `created_at`, usar `createdAt: 'created_at', updatedAt: false`)
+- `tableName` siempre explícito para evitar pluralización automática de Sequelize
+- Asociaciones definidas únicamente en `models/index.js`
+- Para transacciones: `sequelize.transaction(async (t) => { ... })`
+- Para condiciones complejas: usar `Op` de Sequelize (`Op.gt`, `Op.in`, `Op.lt`, etc.)
 
 **Reglas de código:**
 - Sin comentarios salvo que el WHY no sea obvio
