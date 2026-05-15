@@ -7,7 +7,10 @@ Documento de referencia para el agente. Leerlo completo antes de tocar cualquier
 ## 1. Qué es el sistema
 
 Backend REST para peluquerías que gestiona la agenda de turnos de múltiples peluqueros.
-Los clientes interactúan por WhatsApp; una IA (Claude API) interpreta los mensajes y ejecuta acciones sobre este backend. El MVP es solo el backend — sin WhatsApp ni IA todavía.
+
+**Consumidor principal:** una IA (Claude API) que recibe mensajes por WhatsApp, interpreta la intención del usuario y ejecuta acciones sobre este backend mediante Tool Use. El backend debe ser diseñado pensando en que quien lo consume es una IA, no un humano — los errores deben ser descriptivos, los endpoints predecibles, y las validaciones claras para que el modelo pueda corregir y reintentar.
+
+El MVP es solo el backend REST — sin WhatsApp ni IA todavía.
 
 ---
 
@@ -286,11 +289,43 @@ Response 409: existen turnos futuros en ese bloque horario
 
 ---
 
-## 7. Qué viene después del MVP
+## 8. Pendientes
 
-- Módulo Clientes (SPEC pendiente)
-- Módulo Disponibilidad (SPEC pendiente)
-- Módulo Profesionales (SPEC aprobada e implementada)
-- Integración WhatsApp (Twilio o Meta API)
-- Capa de IA con Claude API para interpretar mensajes
-- Testing con Jest
+### Backend MVP (próximas sesiones)
+
+| Módulo | Estado | Notas |
+|---|---|---|
+| Clientes | SPEC pendiente | CRUD básico, identificación por teléfono (clave para WhatsApp) |
+| Disponibilidad | SPEC pendiente | Endpoint más crítico para la IA — devuelve slots libres calculados |
+| Servicios | Sin spec | Lectura de los servicios disponibles (GET), sin ABM por ahora |
+
+### Capa de IA — Tool Use (después del MVP backend)
+
+El backend va a ser consumido por un agente de Claude API mediante **Tool Use**. Cada endpoint relevante se expone como una "tool" con su descripción en lenguaje natural. El modelo decide qué tool llamar, con qué parámetros, y en qué orden, basándose en el mensaje del usuario.
+
+**Flujo para "quiero agendar un turno el martes con Jony por la tarde":**
+1. Buscar profesional por nombre → `GET /api/admin/profesionales`
+2. Consultar disponibilidad → `GET /api/disponibilidad?fecha=...&profesional_id=...`
+3. Confirmar horario con el usuario
+4. Identificar o crear el cliente por teléfono → `GET /api/clientes?telefono=...`
+5. Crear el turno → `POST /api/turnos`
+
+**Principios de diseño pensados para la IA:**
+- Los errores son descriptivos (`"El profesional no atiende en ese horario"`) para que el modelo pueda corregir y reintentar sin intervención humana
+- El endpoint de disponibilidad devuelve slots ya calculados — la IA no necesita hacer aritmética de horarios
+- Las validaciones están en el backend, no en el agente — el agente confía en los 400/409 para entender qué salió mal
+
+**Pendiente implementar:**
+- [ ] Definir las tools de Claude API para cada endpoint
+- [ ] System prompt con reglas de negocio en lenguaje natural
+- [ ] Integración con WhatsApp (Twilio o Meta API)
+- [ ] Manejo de contexto de conversación (historial por número de teléfono)
+- [ ] Notificaciones: recordatorio de turno 24hs antes
+
+### Mejoras futuras (post-MVP)
+
+- [ ] Autenticación en rutas `/api/admin/*`
+- [ ] Reasignación automática de turnos al desactivar un profesional
+- [ ] Ausencias puntuales / vacaciones por profesional
+- [ ] Testing con Jest (unitario + integración)
+- [ ] Panel web de administración
