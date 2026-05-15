@@ -2,12 +2,11 @@
 
 const express = require('express');
 const router = express.Router();
-const disponibilidadService = require('../services/disponibilidad.service');
+const service = require('../services/disponibilidad.service');
 
 router.get('/', async (req, res, next) => {
   try {
-    const slots = await disponibilidadService.getSlots(req.query);
-    res.json(slots);
+    res.json(await service.getSlots(req.query));
   } catch (err) {
     next(err);
   }

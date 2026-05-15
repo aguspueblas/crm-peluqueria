@@ -326,7 +326,77 @@ Los datos vienen directamente del webhook: `wa_id` como `telefono`, `profile.nam
 
 ---
 
-## 8. Metodología de trabajo
+## 8. Módulo Disponibilidad — SPEC APROBADA
+
+**Prefijo:** `/api/disponibilidad`
+**Estado:** APPROVED — implementado
+
+### Endpoint
+
+```
+GET /api/disponibilidad?fecha=2026-05-19
+GET /api/disponibilidad?fecha=2026-05-19&profesional_id=1
+```
+
+### Lógica de cálculo
+
+1. Obtener bloques de horario del/los profesional/es activos para ese `dia_semana`
+2. Generar slots cada 30 minutos dentro de cada bloque (último slot válido: `hora + 30 <= hora_fin del bloque`)
+3. Eliminar slots que se solapan con turnos existentes (`pendiente` o `confirmado`)
+4. Devolver solo los slots libres
+
+### Response sin `profesional_id`
+
+```json
+{
+  "fecha": "2026-05-19",
+  "slots": [
+    { "hora": "10:00", "profesionales": [{ "id": 1, "nombre": "María González" }, { "id": 2, "nombre": "Carlos López" }] },
+    { "hora": "10:30", "profesionales": [{ "id": 2, "nombre": "Carlos López" }] }
+  ]
+}
+```
+
+> La IA toma `slots[X].profesionales[0]` para auto-asignar cuando el cliente no especificó peluquero.
+
+### Response con `profesional_id`
+
+```json
+{
+  "fecha": "2026-05-19",
+  "profesional": { "id": 1, "nombre": "María González" },
+  "slots": ["10:00", "10:30", "11:00", "14:00", "14:30"]
+}
+```
+
+### Reglas de negocio
+
+- **RN-1:** `fecha` es obligatorio (formato YYYY-MM-DD) → 400 si falta.
+- **RN-2:** `fecha` no puede ser en el pasado → 400.
+- **RN-3:** Solo se incluyen profesionales con `activo = true`.
+- **RN-4:** Un slot está ocupado si existe un turno activo que se solapa con `hora → hora + 30min`.
+- **RN-5:** El último slot válido de un bloque es aquel cuyo fin no excede `hora_fin` del bloque.
+
+### Flujos de la IA usando este endpoint
+
+**Sin peluquero especificado** ("quiero un turno el martes a la tarde"):
+1. `GET /api/disponibilidad?fecha=2026-05-20` → filtra slots con hora >= 16:00
+2. Toma `slots[0].profesionales[0]` → auto-asigna
+3. `POST /api/turnos` → guarda sin preguntar
+
+**Con peluquero especificado** ("quiero con Jony el martes a la tarde"):
+1. `GET /api/admin/profesionales` → busca "Jony" por nombre
+2. `GET /api/disponibilidad?fecha=2026-05-20&profesional_id=2` → filtra hora >= 16:00
+3. IA sugiere horarios al cliente y espera respuesta
+4. `POST /api/turnos` → guarda con ese profesional
+
+### Fuera de scope (MVP)
+- Filtros por franja horaria en el endpoint (`?turno=tarde`)
+- Multi-servicio con duración variable (actualmente fijo en 30 min)
+
+---
+
+## 9. Metodología de trabajo
 
 **SDD (Spec-Driven Development):**
 1. Antes de implementar cualquier módulo, definir la spec juntos
@@ -343,7 +413,7 @@ Los datos vienen directamente del webhook: `wa_id` como `telefono`, `profile.nam
 | Módulo | Estado | Notas |
 |---|---|---|
 | Clientes | SPEC aprobada e implementada | CRUD básico, identificación por teléfono (clave para WhatsApp) |
-| Disponibilidad | SPEC pendiente | Endpoint más crítico para la IA — devuelve slots libres calculados |
+| Disponibilidad | SPEC aprobada e implementada | Endpoint más crítico para la IA — devuelve slots libres calculados |
 | Servicios | Sin spec | Lectura de los servicios disponibles (GET), sin ABM por ahora |
 
 ### Capa de IA — Tool Use (después del MVP backend)
