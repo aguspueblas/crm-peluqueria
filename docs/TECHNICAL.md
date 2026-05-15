@@ -394,7 +394,165 @@ En el MVP ambos grupos son abiertos. Cuando se agregue autenticación, el middle
 
 ---
 
-## 10. Convenciones de código
+## 10. Ejemplos de request / response por endpoint
+
+### POST /api/admin/profesionales — Crear profesional
+
+```json
+// Body
+{
+  "nombre": "María González",
+  "horarios": [
+    { "dia_semana": 1, "hora_inicio": "10:00", "hora_fin": "13:00" },
+    { "dia_semana": 1, "hora_inicio": "14:00", "hora_fin": "20:00" },
+    { "dia_semana": 2, "hora_inicio": "10:00", "hora_fin": "13:00" },
+    { "dia_semana": 2, "hora_inicio": "14:00", "hora_fin": "20:00" },
+    { "dia_semana": 3, "hora_inicio": "10:00", "hora_fin": "13:00" },
+    { "dia_semana": 3, "hora_inicio": "14:00", "hora_fin": "20:00" },
+    { "dia_semana": 4, "hora_inicio": "10:00", "hora_fin": "13:00" },
+    { "dia_semana": 4, "hora_inicio": "14:00", "hora_fin": "20:00" },
+    { "dia_semana": 5, "hora_inicio": "10:00", "hora_fin": "13:00" },
+    { "dia_semana": 5, "hora_inicio": "14:00", "hora_fin": "20:00" },
+    { "dia_semana": 6, "hora_inicio": "10:00", "hora_fin": "13:00" }
+  ]
+}
+```
+
+> `dia_semana`: `0`=domingo · `1`=lunes · `2`=martes · `3`=miércoles · `4`=jueves · `5`=viernes · `6`=sábado
+
+```json
+// Response 201
+{
+  "id": 1,
+  "nombre": "María González",
+  "activo": true,
+  "horarios": [
+    { "id": 1, "dia_semana": 1, "hora_inicio": "10:00:00", "hora_fin": "13:00:00" },
+    { "id": 2, "dia_semana": 1, "hora_inicio": "14:00:00", "hora_fin": "20:00:00" }
+  ]
+}
+```
+
+### PUT /api/admin/profesionales/:id — Editar o desactivar
+
+```json
+// Cambiar nombre
+{ "nombre": "María G." }
+
+// Desactivar (cancela todos los turnos futuros automáticamente)
+{ "activo": false }
+
+// Response 200
+{
+  "id": 1,
+  "nombre": "María G.",
+  "activo": false,
+  "horarios": [...],
+  "turnos_cancelados": 3
+}
+```
+
+### POST /api/admin/profesionales/:id/horarios — Agregar bloque
+
+```json
+// Body
+{ "dia_semana": 4, "hora_inicio": "10:00", "hora_fin": "13:00" }
+
+// Response 201
+{ "id": 12, "profesional_id": 1, "dia_semana": 4, "hora_inicio": "10:00:00", "hora_fin": "13:00:00" }
+```
+
+### POST /api/clientes — Crear cliente
+
+```json
+// Body
+{
+  "nombre": "Juan Pérez",
+  "telefono": "1122334455",
+  "email": "juan@mail.com"    // opcional
+}
+
+// Response 201
+{
+  "id": 1,
+  "nombre": "Juan Pérez",
+  "telefono": "1122334455",
+  "email": "juan@mail.com",
+  "created_at": "2026-05-15T02:00:00.000Z"
+}
+```
+
+### POST /api/turnos — Crear turno
+
+```json
+// Body
+{
+  "cliente_id": 1,
+  "profesional_id": 1,
+  "servicio_id": 1,
+  "fecha_hora": "2026-06-02T10:00:00"
+}
+```
+
+> `fecha_hora` debe ser una fecha futura, dentro del horario del profesional.
+> Para conocer los `servicio_id` disponibles consultá directamente la DB — los servicios se cargaron con la migración inicial.
+
+```json
+// Response 201
+{
+  "id": 1,
+  "cliente_id": 1,
+  "profesional_id": 1,
+  "servicio_id": 1,
+  "fecha_hora": "2026-06-02T13:00:00.000Z",
+  "estado": "pendiente",
+  "created_at": "2026-05-15T02:00:00.000Z",
+  "Cliente": { "id": 1, "nombre": "Juan Pérez", "telefono": "1122334455" },
+  "Profesional": { "id": 1, "nombre": "María González" },
+  "Servicio": { "id": 1, "nombre": "Corte de pelo", "duracion_minutos": 30, "precio": "1500.00" }
+}
+```
+
+### PUT /api/turnos/:id — Cambiar estado o reprogramar
+
+```json
+// Confirmar
+{ "estado": "confirmado" }
+
+// Cancelar
+{ "estado": "cancelado" }
+
+// Reprogramar (revalida todas las reglas)
+{ "fecha_hora": "2026-06-02T11:00:00" }
+
+// Reprogramar y confirmar en un solo request
+{ "fecha_hora": "2026-06-02T11:00:00", "estado": "confirmado" }
+```
+
+### GET /api/turnos — Listar con filtros
+
+```
+GET /api/turnos                           → todos
+GET /api/turnos?fecha=2026-06-02          → turnos de un día
+GET /api/turnos?profesional_id=1          → agenda de un profesional
+GET /api/turnos?cliente_id=1             → historial de un cliente
+GET /api/turnos?estado=pendiente         → filtrar por estado
+GET /api/turnos?fecha=2026-06-02&profesional_id=1  → combinados
+```
+
+### Servicios disponibles (cargados con la migración inicial)
+
+| id | nombre | duracion_minutos | precio |
+|---|---|---|---|
+| 1 | Corte de pelo | 30 | 1500 |
+| 2 | Corte + barba | 45 | 2000 |
+| 3 | Coloración | 90 | 4500 |
+| 4 | Mechas | 120 | 6000 |
+| 5 | Brushing | 30 | 1200 |
+
+---
+
+## 11. Convenciones de código
 
 - `'use strict'` al inicio de cada archivo
 - CommonJS: `require` / `module.exports` — no usar ES Modules (`import/export`)
