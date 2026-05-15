@@ -6,6 +6,7 @@ const express = require('express');
 const turnosRoutes = require('./routes/turnos');
 const clientesRoutes = require('./routes/clientes');
 const disponibilidadRoutes = require('./routes/disponibilidad');
+const profesionalesAdminRoutes = require('./routes/admin/profesionales');
 const errorHandler = require('./middlewares/errorHandler');
 
 const app = express();
@@ -20,6 +21,7 @@ app.get('/health', (req, res) => {
 app.use('/api/turnos', turnosRoutes);
 app.use('/api/clientes', clientesRoutes);
 app.use('/api/disponibilidad', disponibilidadRoutes);
+app.use('/api/admin/profesionales', profesionalesAdminRoutes);
 
 app.use(errorHandler);
 

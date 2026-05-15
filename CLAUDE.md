@@ -178,7 +178,85 @@ cancelado  → (bloqueado)
 
 ---
 
-## 6. Metodología de trabajo
+## 6. Módulo Profesionales — SPEC APROBADA
+
+**Prefijo:** `/api/admin/profesionales`
+**Estado:** APPROVED — implementado
+
+### Endpoints
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | /api/admin/profesionales | Listar todos con sus horarios |
+| GET | /api/admin/profesionales/:id | Obtener uno con su horario |
+| POST | /api/admin/profesionales | Crear profesional + horario inicial |
+| PUT | /api/admin/profesionales/:id | Editar nombre o activar/desactivar |
+| POST | /api/admin/profesionales/:id/horarios | Agregar un bloque de horario |
+| PUT | /api/admin/profesionales/:id/horarios/:horario_id | Modificar un bloque |
+| DELETE | /api/admin/profesionales/:id/horarios/:horario_id | Eliminar un bloque |
+
+> Sin DELETE del profesional completo — nunca se borra, solo se desactiva vía `PUT { "activo": false }`.
+
+### POST /api/admin/profesionales
+
+```json
+// Request
+{
+  "nombre": "María González",
+  "horarios": [
+    { "dia_semana": 1, "hora_inicio": "10:00", "hora_fin": "13:00" },
+    { "dia_semana": 1, "hora_inicio": "14:00", "hora_fin": "20:00" }
+  ]
+}
+// Response 201: profesional completo con horarios
+```
+
+### PUT /api/admin/profesionales/:id
+
+```json
+// Request (campos opcionales)
+{ "nombre": "María G.", "activo": false }
+// Si activo pasa a false → cancela turnos futuros
+// Response 200: { id, nombre, activo, turnos_cancelados: 3 }
+```
+
+### POST /api/admin/profesionales/:id/horarios
+
+```json
+// Request
+{ "dia_semana": 4, "hora_inicio": "10:00", "hora_fin": "13:00" }
+// Response 201: bloque creado con su id
+```
+
+### DELETE /api/admin/profesionales/:id/horarios/:horario_id
+
+```
+Response 204: bloque eliminado
+Response 404: bloque no encontrado
+Response 409: existen turnos futuros en ese bloque horario
+```
+
+### Reglas de negocio
+
+- **RN-1:** `horarios` no puede ser vacío al crear.
+- **RN-2:** Dos bloques del mismo profesional no pueden solaparse en el mismo día.
+- **RN-3:** Solo profesionales con `activo = true` pueden recibir nuevos turnos.
+- **RN-4:** Al desactivar, todos los turnos futuros (`pendiente` o `confirmado`) se cancelan.
+- **RN-5:** No se puede eliminar un bloque si existen turnos futuros en ese rango horario.
+
+### Invariantes
+- Un profesional nunca se borra físicamente.
+- Los bloques de horario de un mismo profesional no se solapan.
+
+### Fuera de scope (MVP)
+- Ausencias puntuales / vacaciones
+- Fotos o avatares
+- Notificaciones WhatsApp al cancelar por desactivación
+- **Próxima iteración:** al desactivar un profesional, reasignar sus turnos futuros automáticamente a otro profesional con disponibilidad en ese horario.
+
+---
+
+## 7. Metodología de trabajo
 
 **SDD (Spec-Driven Development):**
 1. Antes de implementar cualquier módulo, definir la spec juntos
@@ -192,7 +270,7 @@ cancelado  → (bloqueado)
 
 - Módulo Clientes (SPEC pendiente)
 - Módulo Disponibilidad (SPEC pendiente)
-- Módulo Profesionales (SPEC pendiente)
+- Módulo Profesionales (SPEC aprobada e implementada)
 - Integración WhatsApp (Twilio o Meta API)
 - Capa de IA con Claude API para interpretar mensajes
 - Testing con Jest
