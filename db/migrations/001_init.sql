@@ -1,12 +1,13 @@
 -- Migración inicial: schema multi-tenant
 
 CREATE TABLE IF NOT EXISTS negocios (
-  id          SERIAL PRIMARY KEY,
-  nombre      VARCHAR(100) NOT NULL,
-  rubro       VARCHAR(100) NOT NULL,
-  api_key     VARCHAR(64)  UNIQUE NOT NULL,
-  activo      BOOLEAN      DEFAULT TRUE,
-  created_at  TIMESTAMP    DEFAULT NOW()
+  id                SERIAL PRIMARY KEY,
+  nombre            VARCHAR(100) NOT NULL,
+  rubro             VARCHAR(100) NOT NULL,
+  api_key           VARCHAR(64)  UNIQUE NOT NULL,
+  whatsapp_number   VARCHAR(20)  UNIQUE,
+  activo            BOOLEAN      DEFAULT TRUE,
+  created_at        TIMESTAMP    DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS profesionales (

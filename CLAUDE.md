@@ -14,7 +14,7 @@ Documento de referencia para el agente. Leerlo completo antes de tocar cualquier
 - Peluquería "Don Pelo": 4 barberos, cada uno con su horario
 - Juan el técnico de refrigeración: 1 profesional (él mismo), 1 servicio (visita técnica)
 
-El MVP es solo el backend REST — sin WhatsApp ni IA todavía.
+El operador (dueño del sistema) es el único que administra el acceso. Los negocios-cliente no tienen acceso directo al backend — toda interacción externa ocurre vía WhatsApp.
 
 ---
 
@@ -80,7 +80,9 @@ db/
 
 ```
 negocios
-  id, nombre, rubro, api_key (UNIQUE NOT NULL), activo (bool), created_at
+  id, nombre, rubro, api_key (UNIQUE NOT NULL), whatsapp_number (UNIQUE, nullable), activo (bool), created_at
+  — whatsapp_number: número de WhatsApp del negocio (ej: "5491187654321")
+  — nullable hasta que el negocio configure su número de WhatsApp
 
 profesionales
   id, negocio_id (FK → negocios), nombre, activo (bool)
@@ -107,21 +109,37 @@ turnos
 
 ---
 
-## 5. Contexto de tenant (multi-tenancy)
+## 5. Autenticación y contexto de tenant
 
-**Todas las rutas operacionales requieren el header `X-Api-Key`.**
+### Autenticación — ADMIN_SECRET
+
+El operador es el único consumidor del backend. Toda ruta (incluyendo admin) requiere el header:
 
 ```
-X-Api-Key: sk_donpelo_a3f9bc2e...
+X-Admin-Secret: <valor de ADMIN_SECRET en .env>
 ```
 
-El middleware `tenant.js` intercepta el request, busca el negocio por `api_key` y lo adjunta a `req.negocio`. Si la key no existe o el negocio está inactivo, responde 401.
+El middleware `auth.js` valida este header. Si no coincide, responde 401.
+El `ADMIN_SECRET` nunca se expone al cliente de WhatsApp ni aparece en el contexto de Claude.
 
-Todos los services filtran por `negocio_id: req.negocio.id`. El `negocio_id` **nunca** se envía en el body ni en la URL — siempre viene del middleware.
+**Excepción:** `/api/admin/negocios/*` usa `auth.js` directamente.
+Las demás rutas usan primero `tenant.js` (que implica que `auth.js` ya corrió antes en el pipeline).
 
-**Rutas que aplican tenant middleware:** todas salvo `/api/admin/negocios/*`
+### Identificación de tenant — whatsapp_number
 
-**Rutas admin de negocios:** sin auth en MVP (acceso local/interno).
+Cada negocio tiene un `whatsapp_number` único en la tabla `negocios`. Cuando llega un mensaje de WhatsApp:
+
+1. El webhook recibe el campo `to` (número de destino = número del negocio)
+2. El handler busca directamente en DB: `Negocio.findOne({ where: { whatsapp_number: to } })`
+3. Obtiene el `negocio_id` y lo usa para todas las operaciones de esa conversación
+
+**Decisión de arquitectura:** webhook y backend corren en el **mismo proceso Node.js** (Opción A). El lookup es una llamada directa a Sequelize, no un HTTP endpoint. Esto simplifica el MVP y permite refactorizar a servicios separados en el futuro sin cambiar la lógica de negocio.
+
+### Flujo del tenant middleware (rutas REST)
+
+El `tenant.js` actual resuelve el negocio por `api_key` (header `X-Api-Key`). Esto aplica a las rutas REST del backend cuando se las llama directamente (ej: desde Postman durante desarrollo). El webhook handler interno no pasa por este middleware — resuelve el negocio por `whatsapp_number` y opera directo sobre los services.
+
+Todos los services filtran por `negocio_id`. El `negocio_id` **nunca** se envía en el body ni en la URL — siempre viene del middleware o del lookup del webhook.
 
 ---
 
