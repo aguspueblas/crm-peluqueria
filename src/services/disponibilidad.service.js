@@ -1,17 +1,21 @@
 'use strict';
 
 const sequelize = require('../config/sequelize');
-const { Profesional, ProfesionalHorario } = require('../models');
+const { Profesional, ProfesionalHorario, Servicio } = require('../models');
 
-const DURACION_MINUTOS = 30;
+async function getSlots(negocio_id, { fecha, servicio_id, profesional_id }) {
+  if (!fecha) throw badRequest('fecha is required (YYYY-MM-DD)');
+  if (!servicio_id) throw badRequest('servicio_id is required');
 
-async function getSlots(negocio_id, { fecha, profesional_id }) {
-  if (!fecha) throw badRequest('El parámetro fecha es requerido (YYYY-MM-DD)');
+  const servicio = await Servicio.findOne({ where: { id: servicio_id, negocio_id } });
+  if (!servicio) throw notFound('Service not found');
+
+  const duracion_minutos = servicio.duracion_minutos;
 
   const fechaDate = new Date(`${fecha}T00:00:00`);
-  if (isNaN(fechaDate)) throw badRequest('Formato de fecha inválido. Use YYYY-MM-DD');
+  if (isNaN(fechaDate)) throw badRequest('Invalid date format. Use YYYY-MM-DD');
   if (fechaDate < new Date(new Date().setHours(0, 0, 0, 0)))
-    throw badRequest('La fecha no puede ser en el pasado');
+    throw badRequest('fecha cannot be in the past');
 
   const dia_semana = fechaDate.getDay();
 
@@ -43,7 +47,7 @@ async function getSlots(negocio_id, { fecha, profesional_id }) {
         `SELECT
            t.profesional_id,
            TO_CHAR(t.fecha_hora AT TIME ZONE 'America/Buenos_Aires', 'HH24:MI') AS hora_local,
-           s.duracion_minutos
+           s.duracion_minutos AS duracion_minutos
          FROM turnos t
          JOIN servicios s ON s.id = t.servicio_id
          WHERE t.profesional_id IN (:ids)
@@ -61,8 +65,8 @@ async function getSlots(negocio_id, { fecha, profesional_id }) {
     const slotsLibres = [];
 
     for (const horario of prof.horarios) {
-      for (const slot of generarSlots(horario.hora_inicio, horario.hora_fin)) {
-        if (!estaOcupado(slot, turnosProf)) {
+      for (const slot of generarSlots(horario.hora_inicio, horario.hora_fin, duracion_minutos)) {
+        if (!estaOcupado(slot, turnosProf, duracion_minutos)) {
           slotsLibres.push(slot);
         }
       }
@@ -71,9 +75,11 @@ async function getSlots(negocio_id, { fecha, profesional_id }) {
     return { profesional: { id: prof.id, nombre: prof.nombre }, slots: slotsLibres };
   });
 
+  const servicioInfo = { id: servicio.id, nombre: servicio.nombre, duracion_minutos };
+
   if (profesional_id) {
     const { profesional, slots } = slotsPorProfesional[0];
-    return { fecha, profesional, slots };
+    return { fecha, servicio: servicioInfo, profesional, slots };
   }
 
   const slotMap = {};
@@ -86,11 +92,12 @@ async function getSlots(negocio_id, { fecha, profesional_id }) {
 
   return {
     fecha,
+    servicio: servicioInfo,
     slots: Object.keys(slotMap).sort().map(hora => ({ hora, profesionales: slotMap[hora] })),
   };
 }
 
-function generarSlots(hora_inicio, hora_fin) {
+function generarSlots(hora_inicio, hora_fin, duracion_minutos) {
   const slots = [];
   const [hi, mi] = hora_inicio.toString().slice(0, 5).split(':').map(Number);
   const [hf, mf] = hora_fin.toString().slice(0, 5).split(':').map(Number);
@@ -98,11 +105,11 @@ function generarSlots(hora_inicio, hora_fin) {
   let minutos = hi * 60 + mi;
   const finMinutos = hf * 60 + mf;
 
-  while (minutos + DURACION_MINUTOS <= finMinutos) {
+  while (minutos + duracion_minutos <= finMinutos) {
     const h = Math.floor(minutos / 60);
     const m = minutos % 60;
     slots.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
-    minutos += DURACION_MINUTOS;
+    minutos += duracion_minutos;
   }
 
   return slots;
@@ -113,14 +120,13 @@ function horaToMinutos(hora) {
   return h * 60 + m;
 }
 
-function estaOcupado(hora, turnos) {
+function estaOcupado(hora, turnos, duracion_minutos) {
   const slotMin = horaToMinutos(hora);
-  const slotEnd = slotMin + DURACION_MINUTOS;
+  const slotEnd = slotMin + duracion_minutos;
 
   return turnos.some(turno => {
     const turnoStart = horaToMinutos(turno.hora_local);
-    const duracion = turno.duracion_minutos ?? DURACION_MINUTOS;
-    const turnoEnd = turnoStart + duracion;
+    const turnoEnd = turnoStart + parseInt(turno.duracion_minutos);
     return turnoStart < slotEnd && turnoEnd > slotMin;
   });
 }

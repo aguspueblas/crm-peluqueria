@@ -11,6 +11,7 @@ const Servicio = sequelize.define('Servicio', {
   precio:            { type: DataTypes.DECIMAL(10, 2) },
 }, {
   tableName: 'servicios',
+  timestamps: false,
 });
 
 module.exports = Servicio;

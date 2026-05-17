@@ -10,16 +10,16 @@ async function getAll(negocio_id) {
 
 async function create(negocio_id, { nombre, duracion_minutos, precio }) {
   if (!nombre || !duracion_minutos) throw badRequest('nombre and duracion_minutos are required');
-  if (!Number.isInteger(duracion_minutos) || duracion_minutos <= 0 || duracion_minutos % 30 !== 0)
-    throw badRequest('duracion_minutos must be a positive multiple of 30');
+  if (!Number.isInteger(duracion_minutos) || duracion_minutos <= 0)
+    throw badRequest('duracion_minutos must be a positive integer');
   return Servicio.create({ negocio_id, nombre, duracion_minutos, precio: precio ?? null });
 }
 
 async function update(negocio_id, id, { nombre, duracion_minutos, precio }) {
   const servicio = await findOwned(negocio_id, id);
   if (duracion_minutos !== undefined) {
-    if (!Number.isInteger(duracion_minutos) || duracion_minutos <= 0 || duracion_minutos % 30 !== 0)
-      throw badRequest('duracion_minutos must be a positive multiple of 30');
+    if (!Number.isInteger(duracion_minutos) || duracion_minutos <= 0)
+      throw badRequest('duracion_minutos must be a positive integer');
   }
   await servicio.update({ nombre, duracion_minutos, precio });
   return servicio;

@@ -146,8 +146,8 @@ Todos los services filtran por `negocio_id`. El `negocio_id` **nunca** se envía
 ## 6. Módulo Negocios — SPEC APROBADA
 
 **Prefijo:** `/api/admin/negocios`
-**Auth:** sin auth en MVP
-**Estado:** APPROVED — pendiente implementar
+**Auth:** `X-Admin-Secret` header requerido en todos los endpoints
+**Estado:** APPROVED — implementado
 
 ### Endpoints
 
@@ -156,7 +156,7 @@ Todos los services filtran por `negocio_id`. El `negocio_id` **nunca** se envía
 | POST | /api/admin/negocios | Crear negocio + generar api_key |
 | GET | /api/admin/negocios | Listar todos los negocios |
 | GET | /api/admin/negocios/:id | Obtener un negocio |
-| PUT | /api/admin/negocios/:id | Actualizar nombre, rubro o activo |
+| PUT | /api/admin/negocios/:id | Actualizar nombre, rubro, whatsapp_number o activo |
 
 > Sin DELETE — nunca se borra, solo se desactiva vía `PUT { "activo": false }`.
 
@@ -164,36 +164,38 @@ Todos los services filtran por `negocio_id`. El `negocio_id` **nunca** se envía
 
 ```json
 // Request
-{ "nombre": "Peluquería Don Pelo", "rubro": "peluquería" }
+{ "nombre": "Peluquería Don Pelo", "rubro": "peluquería", "whatsapp_number": "5491187654321" }
 
 // Response 201
 {
   "id": 1,
   "nombre": "Peluquería Don Pelo",
   "rubro": "peluquería",
-  "api_key": "sk_d0np3l0_a3f9bc2e4d1f...",
+  "whatsapp_number": "5491187654321",
+  "api_key": "sk_...",
   "activo": true,
   "created_at": "2026-05-15T12:00:00.000Z"
 }
 ```
 
-> La `api_key` se genera automáticamente con `crypto.randomBytes`. Es la clave que se configura en el agente de IA de ese negocio.
+> La `api_key` se devuelve solo en la creación — debe guardarse. Se usa como `X-Api-Key` para identificar al negocio en las rutas REST (desarrollo/Postman). El webhook usa `whatsapp_number` en su lugar.
 
 ### PUT /api/admin/negocios/:id
 
 ```json
-// Request (campos opcionales)
-{ "nombre": "Don Pelo Barber", "activo": false }
+// Request (todos los campos opcionales)
+{ "nombre": "Don Pelo Barber", "whatsapp_number": "5491187654321", "activo": false }
 
-// Response 200: negocio actualizado
-// Response 404: { "error": "Negocio no encontrado" }
+// Response 200: negocio actualizado (sin api_key)
+// Response 404: { "error": "Negocio not found" }
 ```
 
 ### Reglas de negocio
 
 - **RN-1:** `nombre` y `rubro` son obligatorios al crear.
 - **RN-2:** `api_key` se genera automáticamente — nunca la envía el cliente.
-- **RN-3:** Un negocio con `activo: false` rechaza todos los requests con su api_key (el tenant middleware devuelve 401).
+- **RN-3:** `whatsapp_number` es opcional al crear. Si se provee, debe ser único en todo el sistema.
+- **RN-4:** Un negocio con `activo: false` rechaza todos los requests con su api_key (el tenant middleware devuelve 401).
 
 ---
 
@@ -202,7 +204,8 @@ Todos los services filtran por `negocio_id`. El `negocio_id` **nunca** se envía
 > **Tenant:** `negocio_id` resuelto por middleware. No va en body ni URL.
 
 **Prefijo:** `/api/turnos`
-**Estado:** APPROVED — implementado (pendiente refactor multi-tenant)
+**Auth:** `X-Api-Key` header requerido (resuelve tenant)
+**Estado:** APPROVED — implementado
 
 ### Endpoints
 
@@ -303,7 +306,8 @@ cancelado  → (bloqueado)
 > **Tenant:** `negocio_id` resuelto por middleware. No va en body ni URL.
 
 **Prefijo:** `/api/admin/profesionales`
-**Estado:** APPROVED — implementado (pendiente refactor multi-tenant)
+**Auth:** `X-Api-Key` header requerido (resuelve tenant)
+**Estado:** APPROVED — implementado
 
 ### Endpoints
 
@@ -379,7 +383,8 @@ Response 409: existen turnos futuros en ese bloque horario
 > **Tenant:** `negocio_id` resuelto por middleware. No va en body ni URL.
 
 **Prefijo:** `/api/clientes`
-**Estado:** APPROVED — implementado (pendiente refactor multi-tenant)
+**Auth:** `X-Api-Key` header requerido (resuelve tenant)
+**Estado:** APPROVED — implementado
 
 ### Endpoints
 
@@ -428,27 +433,38 @@ Los datos vienen directamente del webhook: `wa_id` como `telefono`, `profile.nam
 > **Tenant:** `negocio_id` resuelto por middleware. No va en body ni URL.
 
 **Prefijo:** `/api/disponibilidad`
-**Estado:** APPROVED — implementado (pendiente refactor multi-tenant)
+**Auth:** `X-Api-Key` header requerido (resuelve tenant)
+**Estado:** APPROVED — implementado (pendiente actualizar por cambio de servicio_id)
 
 ### Endpoint
 
 ```
-GET /api/disponibilidad?fecha=2026-05-19
-GET /api/disponibilidad?fecha=2026-05-19&profesional_id=1
+GET /api/disponibilidad?fecha=2026-05-19&servicio_id=1
+GET /api/disponibilidad?fecha=2026-05-19&servicio_id=1&profesional_id=1
 ```
+
+### Parámetros
+
+| Parámetro | Tipo | Requerido | Descripción |
+|---|---|---|---|
+| fecha | YYYY-MM-DD | Sí | Fecha a consultar |
+| servicio_id | integer | Sí | Define la duración del slot |
+| profesional_id | integer | No | Filtra a un profesional específico |
 
 ### Lógica de cálculo
 
-1. Obtener bloques de horario del/los profesional/es activos del negocio para ese `dia_semana`
-2. Generar slots cada 30 minutos dentro de cada bloque (último slot válido: `hora + 30 <= hora_fin del bloque`)
-3. Eliminar slots que se solapan con turnos existentes (`pendiente` o `confirmado`)
-4. Devolver solo los slots libres
+1. Obtener `duracion_minutos` del servicio solicitado
+2. Obtener bloques de horario del/los profesional/es activos del negocio para ese `dia_semana`
+3. Generar slots de `duracion_minutos` dentro de cada bloque (último slot válido: `hora + duracion <= hora_fin del bloque`)
+4. Eliminar slots que se solapan con turnos existentes (`pendiente` o `confirmado`)
+5. Devolver solo los slots libres
 
 ### Response sin `profesional_id`
 
 ```json
 {
   "fecha": "2026-05-19",
+  "servicio": { "id": 1, "nombre": "Corte de pelo", "duracion_minutos": 30 },
   "slots": [
     { "hora": "10:00", "profesionales": [{ "id": 1, "nombre": "María González" }, { "id": 2, "nombre": "Carlos López" }] },
     { "hora": "10:30", "profesionales": [{ "id": 2, "nombre": "Carlos López" }] }
@@ -463,6 +479,7 @@ GET /api/disponibilidad?fecha=2026-05-19&profesional_id=1
 ```json
 {
   "fecha": "2026-05-19",
+  "servicio": { "id": 1, "nombre": "Corte de pelo", "duracion_minutos": 30 },
   "profesional": { "id": 1, "nombre": "María González" },
   "slots": ["10:00", "10:30", "11:00", "14:00", "14:30"]
 }
@@ -470,28 +487,30 @@ GET /api/disponibilidad?fecha=2026-05-19&profesional_id=1
 
 ### Reglas de negocio
 
-- **RN-1:** `fecha` es obligatorio (formato YYYY-MM-DD) → 400 si falta.
+- **RN-1:** `fecha` y `servicio_id` son obligatorios → 400 si falta alguno.
 - **RN-2:** `fecha` no puede ser en el pasado → 400.
 - **RN-3:** Solo se incluyen profesionales con `activo = true` del negocio del tenant.
-- **RN-4:** Un slot está ocupado si existe un turno activo que se solapa con `hora → hora + 30min`.
+- **RN-4:** Un slot está ocupado si existe un turno activo que se solapa con `hora → hora + duracion_minutos`.
 - **RN-5:** El último slot válido de un bloque es aquel cuyo fin no excede `hora_fin` del bloque.
+- **RN-6:** `servicio_id` debe pertenecer al negocio del tenant → 404 si no existe.
 
 ### Flujos de la IA usando este endpoint
 
-**Sin profesional especificado** ("quiero un turno el martes a la tarde"):
-1. `GET /api/disponibilidad?fecha=2026-05-20` → filtra slots con hora >= 16:00
-2. Toma `slots[0].profesionales[0]` → auto-asigna
-3. `POST /api/turnos` → guarda sin preguntar
+**Sin profesional especificado** ("quiero un corte el martes a la tarde"):
+1. `GET /api/servicios` → identifica "Corte de pelo" → `servicio_id=1`
+2. `GET /api/disponibilidad?fecha=2026-05-20&servicio_id=1` → filtra slots con hora >= 16:00
+3. Toma `slots[0].profesionales[0]` → auto-asigna
+4. `POST /api/turnos` → guarda sin preguntar
 
 **Con profesional especificado** ("quiero con Jony el martes a la tarde"):
-1. `GET /api/admin/profesionales` → busca "Jony" por nombre
-2. `GET /api/disponibilidad?fecha=2026-05-20&profesional_id=2` → filtra hora >= 16:00
-3. IA sugiere horarios al cliente y espera respuesta
-4. `POST /api/turnos` → guarda con ese profesional
+1. `GET /api/servicios` → identifica servicio → `servicio_id`
+2. `GET /api/admin/profesionales` → busca "Jony" por nombre → `profesional_id=2`
+3. `GET /api/disponibilidad?fecha=2026-05-20&servicio_id=1&profesional_id=2` → filtra hora >= 16:00
+4. IA sugiere horarios al cliente y espera respuesta
+5. `POST /api/turnos` → guarda con ese profesional
 
 ### Fuera de scope (MVP)
 - Filtros por franja horaria en el endpoint
-- Multi-servicio con duración variable (actualmente fijo en 30 min)
 
 ---
 
@@ -499,8 +518,8 @@ GET /api/disponibilidad?fecha=2026-05-19&profesional_id=1
 
 > **Tenant:** `negocio_id` resuelto por middleware. No va en body ni URL.
 
-**Prefijo público:** `/api/servicios`
-**Prefijo admin:** `/api/admin/servicios`
+**Prefijo público:** `/api/servicios` — requiere `X-Api-Key`
+**Prefijo admin:** `/api/admin/servicios` — requiere `X-Api-Key`
 **Estado:** APPROVED — pendiente implementar
 
 ### Endpoints
@@ -518,11 +537,11 @@ GET /api/disponibilidad?fecha=2026-05-19&profesional_id=1
 // Response 200
 [
   { "id": 1, "nombre": "Corte de pelo", "duracion_minutos": 30, "precio": "3500.00" },
-  { "id": 2, "nombre": "Corte + barba", "duracion_minutos": 45, "precio": "5000.00" }
+  { "id": 2, "nombre": "Instalación de aire acondicionado", "duracion_minutos": 120, "precio": "25000.00" }
 ]
 ```
 
-> La IA llama este endpoint para saber qué servicios puede ofrecer y sus duraciones.
+> La IA llama este endpoint al inicio de la conversación para saber qué servicios puede ofrecer y sus duraciones. `servicio_id` se usa luego en `/api/disponibilidad`.
 
 ### POST /api/admin/servicios
 
@@ -541,24 +560,24 @@ GET /api/disponibilidad?fecha=2026-05-19&profesional_id=1
 { "precio": 13500 }
 
 // Response 200: servicio actualizado
-// Response 404: { "error": "Servicio no encontrado" }
+// Response 404: { "error": "Service not found" }
 ```
 
 ### DELETE /api/admin/servicios/:id
 
 ```
 Response 204: servicio eliminado
-Response 404: { "error": "Servicio no encontrado" }
-Response 409: { "error": "Existen turnos asociados a este servicio" }
+Response 404: { "error": "Service not found" }
+Response 409: { "error": "Service has active appointments" }
 ```
 
 ### Reglas de negocio
 
 - **RN-1:** `nombre` y `duracion_minutos` son obligatorios al crear.
 - **RN-2:** `precio` es opcional (puede ser null).
-- **RN-3:** `duracion_minutos` debe ser un entero positivo múltiplo de 30.
-- **RN-4:** No se puede eliminar un servicio si existen turnos `pendiente` o `confirmado` que lo referencian.
-- **RN-5:** Cada negocio define sus propios servicios — no son compartidos entre negocios.
+- **RN-3:** `duracion_minutos` debe ser un entero positivo mayor a 0. No hay restricción de múltiplo — cada negocio define la duración real de sus servicios.
+- **RN-4:** No se puede eliminar un servicio si existen turnos `pendiente` o `confirmado` que lo referencian → 409.
+- **RN-5:** Un servicio solo es accesible desde el negocio al que pertenece → 404 si no existe en el tenant actual.
 
 ### Fuera de scope (MVP)
 - Activar/desactivar servicio sin eliminarlo
@@ -582,20 +601,16 @@ Response 409: { "error": "Existen turnos asociados a este servicio" }
 
 | Módulo | Estado |
 |---|---|
-| Negocios | SPEC aprobada — pendiente implementar |
+| Negocios | Implementado |
 | Servicios | SPEC aprobada — pendiente implementar |
-| Turnos | SPEC aprobada — implementado, pendiente refactor multi-tenant |
-| Profesionales | SPEC aprobada — implementado, pendiente refactor multi-tenant |
-| Clientes | SPEC aprobada — implementado, pendiente refactor multi-tenant |
-| Disponibilidad | SPEC aprobada — implementado, pendiente refactor multi-tenant |
+| Turnos | Implementado |
+| Profesionales | Implementado |
+| Clientes | Implementado |
+| Disponibilidad | Implementado |
 
-### Orden de implementación sugerido
+### Próximos pasos
 
-1. **Migración schema** — agregar tabla `negocios`, agregar `negocio_id` a las 4 tablas existentes
-2. **Modelo Negocio.js** + middleware `tenant.js`
-3. **Módulo Negocios** (CRUD admin)
-4. **Módulo Servicios**
-5. **Refactor multi-tenant** de Turnos, Profesionales, Clientes, Disponibilidad
+1. **Capa de IA** — Tool Use con Claude API + integración WhatsApp
 
 ### Capa de IA — Tool Use (después del MVP backend)
 
@@ -617,7 +632,6 @@ El backend va a ser consumido por un agente de Claude API mediante **Tool Use**.
 
 ### Mejoras futuras (post-MVP)
 
-- [ ] Autenticación en rutas `/api/admin/*`
 - [ ] Panel web de administración por negocio
 - [ ] Reasignación automática de turnos al desactivar un profesional
 - [ ] Ausencias puntuales / vacaciones por profesional
