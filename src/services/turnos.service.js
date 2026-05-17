@@ -10,17 +10,14 @@ const INCLUDE_DETALLE = [
   { model: Servicio,    attributes: ['id', 'nombre', 'duracion_minutos', 'precio'] },
 ];
 
-const ESTADOS_ACTIVOS = ['pendiente', 'confirmado'];
-
 const TRANSICIONES = {
   pendiente:  ['confirmado', 'cancelado'],
   confirmado: ['cancelado'],
   cancelado:  [],
 };
 
-async function getAll({ fecha, profesional_id, cliente_id, estado } = {}) {
-  const where = {};
-
+async function getAll(negocio_id, { fecha, profesional_id, cliente_id, estado } = {}) {
+  const where = { negocio_id };
   if (fecha) {
     where.fecha_hora = {
       [Op.gte]: new Date(`${fecha}T00:00:00`),
@@ -34,13 +31,13 @@ async function getAll({ fecha, profesional_id, cliente_id, estado } = {}) {
   return Turno.findAll({ where, include: INCLUDE_DETALLE, order: [['fecha_hora', 'ASC']] });
 }
 
-async function getById(id) {
-  const turno = await Turno.findByPk(id, { include: INCLUDE_DETALLE });
+async function getById(negocio_id, id) {
+  const turno = await Turno.findOne({ where: { id, negocio_id }, include: INCLUDE_DETALLE });
   if (!turno) throw notFound('Turno no encontrado');
   return turno;
 }
 
-async function create({ cliente_id, profesional_id, servicio_id, fecha_hora }) {
+async function create(negocio_id, { cliente_id, profesional_id, servicio_id, fecha_hora }) {
   if (!cliente_id || !profesional_id || !servicio_id || !fecha_hora)
     throw badRequest('cliente_id, profesional_id, servicio_id y fecha_hora son requeridos');
 
@@ -48,9 +45,9 @@ async function create({ cliente_id, profesional_id, servicio_id, fecha_hora }) {
     throw badRequest('La fecha del turno debe ser en el futuro');
 
   const [cliente, profesional, servicio] = await Promise.all([
-    Cliente.findByPk(cliente_id),
-    Profesional.findByPk(profesional_id),
-    Servicio.findByPk(servicio_id),
+    Cliente.findOne({ where: { id: cliente_id, negocio_id } }),
+    Profesional.findOne({ where: { id: profesional_id, negocio_id } }),
+    Servicio.findOne({ where: { id: servicio_id, negocio_id } }),
   ]);
 
   if (!cliente)     throw notFound('Cliente no encontrado');
@@ -59,14 +56,14 @@ async function create({ cliente_id, profesional_id, servicio_id, fecha_hora }) {
   if (!profesional.activo) throw badRequest('El profesional no está activo');
 
   await checkDentroDeHorario(profesional_id, fecha_hora, servicio.duracion_minutos);
-  await checkSolapamientos(profesional_id, cliente_id, fecha_hora, servicio.duracion_minutos, null);
+  await checkSolapamientos(negocio_id, profesional_id, cliente_id, fecha_hora, servicio.duracion_minutos, null);
 
-  const turno = await Turno.create({ cliente_id, profesional_id, servicio_id, fecha_hora, estado: 'pendiente' });
-  return getById(turno.id);
+  const turno = await Turno.create({ negocio_id, cliente_id, profesional_id, servicio_id, fecha_hora, estado: 'pendiente' });
+  return getById(negocio_id, turno.id);
 }
 
-async function update(id, { fecha_hora, estado }) {
-  const turno = await getById(id);
+async function update(negocio_id, id, { fecha_hora, estado }) {
+  const turno = await getById(negocio_id, id);
 
   if (estado !== undefined) {
     if (!TRANSICIONES[turno.estado].includes(estado))
@@ -83,15 +80,15 @@ async function update(id, { fecha_hora, estado }) {
     if (!profesional.activo) throw badRequest('El profesional no está activo');
 
     await checkDentroDeHorario(turno.profesional_id, fecha_hora, servicio.duracion_minutos);
-    await checkSolapamientos(turno.profesional_id, turno.cliente_id, fecha_hora, servicio.duracion_minutos, id);
+    await checkSolapamientos(negocio_id, turno.profesional_id, turno.cliente_id, fecha_hora, servicio.duracion_minutos, id);
   }
 
   await turno.update({ ...(fecha_hora && { fecha_hora }), ...(estado && { estado }) });
-  return getById(id);
+  return getById(negocio_id, id);
 }
 
-async function cancel(id) {
-  const turno = await getById(id);
+async function cancel(negocio_id, id) {
+  const turno = await getById(negocio_id, id);
   if (!TRANSICIONES[turno.estado].includes('cancelado'))
     throw unprocessable(`No se puede cancelar un turno en estado '${turno.estado}'`);
   await turno.update({ estado: 'cancelado' });
@@ -115,15 +112,16 @@ async function checkDentroDeHorario(profesional_id, fecha_hora, duracion_minutos
   if (!bloque) throw badRequest('El turno está fuera del horario de atención del profesional');
 }
 
-async function checkSolapamientos(profesional_id, cliente_id, fecha_hora, duracion_minutos, excluir_id) {
+async function checkSolapamientos(negocio_id, profesional_id, cliente_id, fecha_hora, duracion_minutos, excluir_id) {
   const inicio = new Date(fecha_hora).toISOString();
   const fin = new Date(new Date(fecha_hora).getTime() + duracion_minutos * 60000).toISOString();
-  const params = { profesional_id, cliente_id, fecha_hora: inicio, fin, excluir_id: excluir_id ?? null };
+  const params = { negocio_id, profesional_id, cliente_id, fecha_hora: inicio, fin, excluir_id: excluir_id ?? null };
 
   const solapado = await sequelize.query(
     `SELECT t.id, t.profesional_id, t.cliente_id FROM turnos t
      JOIN servicios s ON s.id = t.servicio_id
-     WHERE t.estado IN ('pendiente', 'confirmado')
+     WHERE t.negocio_id = :negocio_id
+       AND t.estado IN ('pendiente', 'confirmado')
        AND (:excluir_id IS NULL OR t.id != :excluir_id)
        AND t.fecha_hora < :fin::timestamptz
        AND t.fecha_hora + (s.duracion_minutos || ' minutes')::interval > :fecha_hora::timestamptz

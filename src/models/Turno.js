@@ -5,6 +5,7 @@ const sequelize = require('../config/sequelize');
 
 const Turno = sequelize.define('Turno', {
   id:             { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  negocio_id:     { type: DataTypes.INTEGER, allowNull: false },
   cliente_id:     { type: DataTypes.INTEGER, allowNull: false },
   profesional_id: { type: DataTypes.INTEGER, allowNull: false },
   servicio_id:    { type: DataTypes.INTEGER, allowNull: false },

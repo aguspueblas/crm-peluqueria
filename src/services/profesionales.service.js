@@ -10,17 +10,17 @@ const INCLUDE_HORARIOS = {
   order: [['dia_semana', 'ASC'], ['hora_inicio', 'ASC']],
 };
 
-async function getAll() {
-  return Profesional.findAll({ include: [INCLUDE_HORARIOS], order: [['nombre', 'ASC']] });
+async function getAll(negocio_id) {
+  return Profesional.findAll({ where: { negocio_id }, include: [INCLUDE_HORARIOS], order: [['nombre', 'ASC']] });
 }
 
-async function getById(id) {
-  const profesional = await Profesional.findByPk(id, { include: [INCLUDE_HORARIOS] });
+async function getById(negocio_id, id) {
+  const profesional = await Profesional.findOne({ where: { id, negocio_id }, include: [INCLUDE_HORARIOS] });
   if (!profesional) throw notFound('Profesional no encontrado');
   return profesional;
 }
 
-async function create({ nombre, horarios }) {
+async function create(negocio_id, { nombre, horarios }) {
   if (!nombre) throw badRequest('El campo nombre es requerido');
   if (!Array.isArray(horarios) || horarios.length === 0)
     throw badRequest('Debe incluir al menos un bloque de horario');
@@ -28,7 +28,7 @@ async function create({ nombre, horarios }) {
   horarios.forEach(validarBloque);
 
   return sequelize.transaction(async (t) => {
-    const profesional = await Profesional.create({ nombre }, { transaction: t });
+    const profesional = await Profesional.create({ negocio_id, nombre }, { transaction: t });
 
     for (const h of horarios) {
       await checkSolapamiento(profesional.id, h.dia_semana, h.hora_inicio, h.hora_fin, null, t);
@@ -38,12 +38,12 @@ async function create({ nombre, horarios }) {
       );
     }
 
-    return Profesional.findByPk(profesional.id, { include: [INCLUDE_HORARIOS], transaction: t });
+    return Profesional.findOne({ where: { id: profesional.id }, include: [INCLUDE_HORARIOS], transaction: t });
   });
 }
 
-async function update(id, { nombre, activo }) {
-  const profesional = await getById(id);
+async function update(negocio_id, id, { nombre, activo }) {
+  const profesional = await getById(negocio_id, id);
 
   await profesional.update({ nombre, activo });
 
@@ -66,21 +66,20 @@ async function update(id, { nombre, activo }) {
   return { ...profesional.toJSON(), turnos_cancelados };
 }
 
-async function addHorario(profesional_id, { dia_semana, hora_inicio, hora_fin }) {
-  await getById(profesional_id);
+async function addHorario(negocio_id, profesional_id, { dia_semana, hora_inicio, hora_fin }) {
+  await getById(negocio_id, profesional_id);
   validarBloque({ dia_semana, hora_inicio, hora_fin });
   await checkSolapamiento(profesional_id, dia_semana, hora_inicio, hora_fin, null);
-
   return ProfesionalHorario.create({ profesional_id, dia_semana, hora_inicio, hora_fin });
 }
 
-async function updateHorario(profesional_id, horario_id, data) {
-  await getById(profesional_id);
+async function updateHorario(negocio_id, profesional_id, horario_id, data) {
+  await getById(negocio_id, profesional_id);
   const horario = await getHorario(horario_id, profesional_id);
 
-  const nuevoDia    = data.dia_semana   ?? horario.dia_semana;
-  const nuevoInicio = data.hora_inicio  ?? horario.hora_inicio;
-  const nuevoFin    = data.hora_fin     ?? horario.hora_fin;
+  const nuevoDia    = data.dia_semana  ?? horario.dia_semana;
+  const nuevoInicio = data.hora_inicio ?? horario.hora_inicio;
+  const nuevoFin    = data.hora_fin    ?? horario.hora_fin;
 
   validarBloque({ dia_semana: nuevoDia, hora_inicio: nuevoInicio, hora_fin: nuevoFin });
   await checkSolapamiento(profesional_id, nuevoDia, nuevoInicio, nuevoFin, horario_id);
@@ -88,8 +87,8 @@ async function updateHorario(profesional_id, horario_id, data) {
   return horario.update({ dia_semana: nuevoDia, hora_inicio: nuevoInicio, hora_fin: nuevoFin });
 }
 
-async function deleteHorario(profesional_id, horario_id) {
-  await getById(profesional_id);
+async function deleteHorario(negocio_id, profesional_id, horario_id) {
+  await getById(negocio_id, profesional_id);
   const horario = await getHorario(horario_id, profesional_id);
 
   const conflictos = await Turno.count({
@@ -105,9 +104,8 @@ async function deleteHorario(profesional_id, horario_id) {
     },
   });
 
-  if (conflictos > 0) {
+  if (conflictos > 0)
     throw conflict('Existen turnos futuros en ese bloque horario. Cancelalos antes de eliminar el horario.');
-  }
 
   await horario.destroy();
 }
@@ -129,7 +127,6 @@ async function checkSolapamiento(profesional_id, dia_semana, hora_inicio, hora_f
     },
     transaction,
   });
-
   if (solapado) throw conflict('El bloque de horario se solapa con uno existente en ese día');
 }
 

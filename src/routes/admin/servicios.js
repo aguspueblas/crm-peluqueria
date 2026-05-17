@@ -2,23 +2,7 @@
 
 const express = require('express');
 const router = express.Router();
-const service = require('../services/turnos.service');
-
-router.get('/', async (req, res, next) => {
-  try {
-    res.json(await service.getAll(req.negocio.id, req.query));
-  } catch (err) {
-    next(err);
-  }
-});
-
-router.get('/:id', async (req, res, next) => {
-  try {
-    res.json(await service.getById(req.negocio.id, req.params.id));
-  } catch (err) {
-    next(err);
-  }
-});
+const service = require('../../services/servicios.service');
 
 router.post('/', async (req, res, next) => {
   try {
@@ -38,8 +22,8 @@ router.put('/:id', async (req, res, next) => {
 
 router.delete('/:id', async (req, res, next) => {
   try {
-    await service.cancel(req.negocio.id, req.params.id);
-    res.status(204).send();
+    await service.remove(req.negocio.id, req.params.id);
+    res.status(204).end();
   } catch (err) {
     next(err);
   }

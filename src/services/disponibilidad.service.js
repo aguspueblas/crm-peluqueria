@@ -5,7 +5,7 @@ const { Profesional, ProfesionalHorario } = require('../models');
 
 const DURACION_MINUTOS = 30;
 
-async function getSlots({ fecha, profesional_id }) {
+async function getSlots(negocio_id, { fecha, profesional_id }) {
   if (!fecha) throw badRequest('El parámetro fecha es requerido (YYYY-MM-DD)');
 
   const fechaDate = new Date(`${fecha}T00:00:00`);
@@ -15,7 +15,7 @@ async function getSlots({ fecha, profesional_id }) {
 
   const dia_semana = fechaDate.getDay();
 
-  const whereProf = { activo: true };
+  const whereProf = { negocio_id, activo: true };
   if (profesional_id) whereProf.id = profesional_id;
 
   const profesionales = await Profesional.findAll({

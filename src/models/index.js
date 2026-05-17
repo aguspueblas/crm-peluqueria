@@ -1,10 +1,21 @@
 'use strict';
 
+const Negocio = require('./Negocio');
 const Profesional = require('./Profesional');
 const ProfesionalHorario = require('./ProfesionalHorario');
 const Cliente = require('./Cliente');
 const Servicio = require('./Servicio');
 const Turno = require('./Turno');
+
+// Negocio → todo lo demás
+Negocio.hasMany(Profesional,  { foreignKey: 'negocio_id' });
+Negocio.hasMany(Cliente,      { foreignKey: 'negocio_id' });
+Negocio.hasMany(Servicio,     { foreignKey: 'negocio_id' });
+Negocio.hasMany(Turno,        { foreignKey: 'negocio_id' });
+Profesional.belongsTo(Negocio, { foreignKey: 'negocio_id' });
+Cliente.belongsTo(Negocio,     { foreignKey: 'negocio_id' });
+Servicio.belongsTo(Negocio,    { foreignKey: 'negocio_id' });
+Turno.belongsTo(Negocio,       { foreignKey: 'negocio_id' });
 
 // Profesional ↔ Horarios
 Profesional.hasMany(ProfesionalHorario, { as: 'horarios', foreignKey: 'profesional_id' });
@@ -17,4 +28,4 @@ Turno.belongsTo(Servicio,    { foreignKey: 'servicio_id' });
 Cliente.hasMany(Turno,       { foreignKey: 'cliente_id' });
 Profesional.hasMany(Turno,   { foreignKey: 'profesional_id' });
 
-module.exports = { Profesional, ProfesionalHorario, Cliente, Servicio, Turno };
+module.exports = { Negocio, Profesional, ProfesionalHorario, Cliente, Servicio, Turno };
