@@ -100,19 +100,15 @@ async function cancel(negocio_id, id) {
   await turno.update({ estado: 'cancelado' });
 }
 
-// Uses a raw query with AT TIME ZONE to avoid process-timezone dependency
 async function checkDentroDeHorario(profesional_id, fecha_hora, duracion_minutos) {
-  const inicio = new Date(fecha_hora).toISOString();
-  const fin    = new Date(new Date(fecha_hora).getTime() + duracion_minutos * 60000).toISOString();
-
   const result = await sequelize.query(
     `SELECT id FROM profesional_horarios
      WHERE profesional_id = :profesional_id
-       AND dia_semana = EXTRACT(DOW FROM :inicio::timestamptz AT TIME ZONE 'America/Buenos_Aires')
-       AND hora_inicio <= (:inicio::timestamptz AT TIME ZONE 'America/Buenos_Aires')::time
-       AND hora_fin    >= (:fin::timestamptz    AT TIME ZONE 'America/Buenos_Aires')::time
+       AND dia_semana = EXTRACT(DOW FROM :fecha_hora::timestamp)
+       AND hora_inicio <= :fecha_hora::timestamp::time
+       AND hora_fin    >= (:fecha_hora::timestamp + :duracion * INTERVAL '1 minute')::time
      LIMIT 1`,
-    { replacements: { profesional_id, inicio, fin }, type: sequelize.QueryTypes.SELECT }
+    { replacements: { profesional_id, fecha_hora, duracion: duracion_minutos }, type: sequelize.QueryTypes.SELECT }
   );
 
   if (result.length === 0)
