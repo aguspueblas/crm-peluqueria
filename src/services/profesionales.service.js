@@ -3,6 +3,7 @@
 const { Op } = require('sequelize');
 const sequelize = require('../config/sequelize');
 const { Profesional, ProfesionalHorario, Turno } = require('../models');
+const { notFound, badRequest, conflict } = require('../utils/errors');
 
 const INCLUDE_HORARIOS = {
   model: ProfesionalHorario,
@@ -16,26 +17,23 @@ async function getAll(negocio_id) {
 
 async function getById(negocio_id, id) {
   const profesional = await Profesional.findOne({ where: { id, negocio_id }, include: [INCLUDE_HORARIOS] });
-  if (!profesional) throw notFound('Profesional no encontrado');
+  if (!profesional) throw notFound('Professional not found');
   return profesional;
 }
 
 async function create(negocio_id, { nombre, horarios }) {
-  if (!nombre) throw badRequest('El campo nombre es requerido');
+  if (!nombre) throw badRequest('nombre is required');
   if (!Array.isArray(horarios) || horarios.length === 0)
-    throw badRequest('Debe incluir al menos un bloque de horario');
+    throw badRequest('At least one schedule block is required');
 
-  horarios.forEach(validarBloque);
+  horarios.forEach(validateBlock);
 
   return sequelize.transaction(async (t) => {
     const profesional = await Profesional.create({ negocio_id, nombre }, { transaction: t });
 
     for (const h of horarios) {
-      await checkSolapamiento(profesional.id, h.dia_semana, h.hora_inicio, h.hora_fin, null, t);
-      await ProfesionalHorario.create(
-        { profesional_id: profesional.id, ...h },
-        { transaction: t }
-      );
+      await checkOverlap(profesional.id, h.dia_semana, h.hora_inicio, h.hora_fin, null, t);
+      await ProfesionalHorario.create({ profesional_id: profesional.id, ...h }, { transaction: t });
     }
 
     return Profesional.findOne({ where: { id: profesional.id }, include: [INCLUDE_HORARIOS], transaction: t });
@@ -68,8 +66,8 @@ async function update(negocio_id, id, { nombre, activo }) {
 
 async function addHorario(negocio_id, profesional_id, { dia_semana, hora_inicio, hora_fin }) {
   await getById(negocio_id, profesional_id);
-  validarBloque({ dia_semana, hora_inicio, hora_fin });
-  await checkSolapamiento(profesional_id, dia_semana, hora_inicio, hora_fin, null);
+  validateBlock({ dia_semana, hora_inicio, hora_fin });
+  await checkOverlap(profesional_id, dia_semana, hora_inicio, hora_fin, null);
   return ProfesionalHorario.create({ profesional_id, dia_semana, hora_inicio, hora_fin });
 }
 
@@ -77,46 +75,53 @@ async function updateHorario(negocio_id, profesional_id, horario_id, data) {
   await getById(negocio_id, profesional_id);
   const horario = await getHorario(horario_id, profesional_id);
 
-  const nuevoDia    = data.dia_semana  ?? horario.dia_semana;
-  const nuevoInicio = data.hora_inicio ?? horario.hora_inicio;
-  const nuevoFin    = data.hora_fin    ?? horario.hora_fin;
+  const newDay   = data.dia_semana  ?? horario.dia_semana;
+  const newStart = data.hora_inicio ?? horario.hora_inicio;
+  const newEnd   = data.hora_fin    ?? horario.hora_fin;
 
-  validarBloque({ dia_semana: nuevoDia, hora_inicio: nuevoInicio, hora_fin: nuevoFin });
-  await checkSolapamiento(profesional_id, nuevoDia, nuevoInicio, nuevoFin, horario_id);
+  validateBlock({ dia_semana: newDay, hora_inicio: newStart, hora_fin: newEnd });
+  await checkOverlap(profesional_id, newDay, newStart, newEnd, horario_id);
 
-  return horario.update({ dia_semana: nuevoDia, hora_inicio: nuevoInicio, hora_fin: nuevoFin });
+  return horario.update({ dia_semana: newDay, hora_inicio: newStart, hora_fin: newEnd });
 }
 
 async function deleteHorario(negocio_id, profesional_id, horario_id) {
   await getById(negocio_id, profesional_id);
   const horario = await getHorario(horario_id, profesional_id);
 
-  const conflictos = await Turno.count({
-    where: {
-      profesional_id,
-      fecha_hora: { [Op.gt]: new Date() },
-      estado: { [Op.in]: ['pendiente', 'confirmado'] },
-      [Op.and]: sequelize.literal(
-        `EXTRACT(DOW FROM fecha_hora) = ${horario.dia_semana}
-         AND fecha_hora::time >= '${horario.hora_inicio}'
-         AND fecha_hora::time < '${horario.hora_fin}'`
-      ),
-    },
-  });
+  // Raw query with named replacements — avoids sequelize.literal() string interpolation
+  const rows = await sequelize.query(
+    `SELECT COUNT(*) AS count FROM turnos
+     WHERE profesional_id = :profesional_id
+       AND fecha_hora > NOW()
+       AND estado IN ('pendiente', 'confirmado')
+       AND EXTRACT(DOW FROM fecha_hora AT TIME ZONE 'America/Buenos_Aires') = :dia_semana
+       AND (fecha_hora AT TIME ZONE 'America/Buenos_Aires')::time >= :hora_inicio
+       AND (fecha_hora AT TIME ZONE 'America/Buenos_Aires')::time <  :hora_fin`,
+    {
+      replacements: {
+        profesional_id,
+        dia_semana:   horario.dia_semana,
+        hora_inicio:  horario.hora_inicio.toString().slice(0, 8),
+        hora_fin:     horario.hora_fin.toString().slice(0, 8),
+      },
+      type: sequelize.QueryTypes.SELECT,
+    }
+  );
 
-  if (conflictos > 0)
-    throw conflict('Existen turnos futuros en ese bloque horario. Cancelalos antes de eliminar el horario.');
+  if (parseInt(rows[0].count) > 0)
+    throw conflict('There are future appointments in this schedule block. Cancel them before deleting.');
 
   await horario.destroy();
 }
 
 async function getHorario(horario_id, profesional_id) {
   const horario = await ProfesionalHorario.findOne({ where: { id: horario_id, profesional_id } });
-  if (!horario) throw notFound('Bloque de horario no encontrado');
+  if (!horario) throw notFound('Schedule block not found');
   return horario;
 }
 
-async function checkSolapamiento(profesional_id, dia_semana, hora_inicio, hora_fin, excluir_id, transaction) {
+async function checkOverlap(profesional_id, dia_semana, hora_inicio, hora_fin, excluir_id, transaction) {
   const solapado = await ProfesionalHorario.findOne({
     where: {
       profesional_id,
@@ -127,20 +132,16 @@ async function checkSolapamiento(profesional_id, dia_semana, hora_inicio, hora_f
     },
     transaction,
   });
-  if (solapado) throw conflict('El bloque de horario se solapa con uno existente en ese día');
+  if (solapado) throw conflict('This schedule block overlaps with an existing one on the same day');
 }
 
-function validarBloque({ dia_semana, hora_inicio, hora_fin }) {
+function validateBlock({ dia_semana, hora_inicio, hora_fin }) {
   if (dia_semana === undefined || !hora_inicio || !hora_fin)
-    throw badRequest('Cada bloque requiere dia_semana, hora_inicio y hora_fin');
+    throw badRequest('Each block requires dia_semana, hora_inicio and hora_fin');
   if (dia_semana < 0 || dia_semana > 6)
-    throw badRequest('dia_semana debe ser entre 0 (domingo) y 6 (sábado)');
+    throw badRequest('dia_semana must be between 0 (Sunday) and 6 (Saturday)');
   if (hora_inicio >= hora_fin)
-    throw badRequest('hora_inicio debe ser anterior a hora_fin');
+    throw badRequest('hora_inicio must be earlier than hora_fin');
 }
-
-function notFound(msg) { const e = new Error(msg); e.status = 404; return e; }
-function badRequest(msg) { const e = new Error(msg); e.status = 400; return e; }
-function conflict(msg) { const e = new Error(msg); e.status = 409; return e; }
 
 module.exports = { getAll, getById, create, update, addHorario, updateHorario, deleteHorario };

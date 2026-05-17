@@ -125,7 +125,6 @@ function estaOcupado(hora, turnos) {
   });
 }
 
-function notFound(msg) { const e = new Error(msg); e.status = 404; return e; }
-function badRequest(msg) { const e = new Error(msg); e.status = 400; return e; }
+const { notFound, badRequest } = require('../utils/errors');
 
 module.exports = { getSlots };
