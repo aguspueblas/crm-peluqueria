@@ -14,6 +14,7 @@ const turnosRoutes             = require('./routes/turnos');
 const clientesRoutes           = require('./routes/clientes');
 const disponibilidadRoutes     = require('./routes/disponibilidad');
 const serviciosRoutes          = require('./routes/servicios');
+const webhookRoutes            = require('./webhook');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -36,6 +37,26 @@ app.use('/api/disponibilidad',      disponibilidadRoutes);
 app.use('/api/servicios',           serviciosRoutes);
 app.use('/api/admin/profesionales', profesionalesAdminRoutes);
 app.use('/api/admin/servicios',     serviciosAdminRoutes);
+
+app.use('/webhook/whatsapp', webhookRoutes);
+
+// Ruta de test del agente — solo disponible en desarrollo
+if (process.env.NODE_ENV === 'development') {
+  const runner   = require('./agent/runner');
+  const { Negocio } = require('./models');
+
+  app.post('/dev/agent', async (req, res, next) => {
+    try {
+      const { negocio_id, from, senderName, message } = req.body;
+      const negocio = await Negocio.findByPk(negocio_id);
+      if (!negocio) return res.status(404).json({ error: 'Negocio not found' });
+      const reply = await runner.run({ negocio, from, senderName, message });
+      res.json({ reply });
+    } catch (err) {
+      next(err);
+    }
+  });
+}
 
 app.use(errorHandler);
 

@@ -5,9 +5,12 @@ services:
       POSTGRES_DB: crm_peluqueria
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./db/migrations/001_init.sql:/docker-entrypoint-initdb.d/001_init.sql
+      - ./db/migrations/002_conversaciones.sql:/docker-entrypoint-initdb.d/002_conversaciones.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
