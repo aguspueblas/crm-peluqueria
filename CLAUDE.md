@@ -1,638 +1,199 @@
 # CLAUDE.md — Agenda SaaS multi-negocio
 
-Documento de referencia para el agente. Leerlo completo antes de tocar cualquier archivo.
+Documento de convenciones generales del proyecto. Leerlo antes de tocar cualquier archivo.
+Las especificaciones de cada módulo están en `/specs/`.
 
 ---
 
-## 1. Qué es el sistema
+## 1. Qué es este proyecto
 
-**Backend REST multi-tenant** para gestionar agendas de turnos. Cada cliente del sistema es un "negocio" independiente (peluquería, técnico, médico, etc.) con sus propios profesionales, servicios y clientes.
+**Backend REST multi-tenant** para gestionar agendas de turnos vía WhatsApp. Cada cliente del sistema es un "negocio" independiente (peluquería, técnico de refrigeración, médico, etc.) con sus propios profesionales, servicios y clientes.
 
-**Consumidor principal:** una IA (Claude API) que recibe mensajes por WhatsApp, interpreta la intención del usuario y ejecuta acciones sobre este backend mediante Tool Use. El backend debe ser diseñado pensando en que quien lo consume es una IA, no un humano — los errores deben ser descriptivos, los endpoints predecibles, y las validaciones claras para que el modelo pueda corregir y reintentar.
+**Problema que resuelve:** pequeños emprendedores pierden clientes porque no tienen un sistema de turnos simple. Este sistema les da una agenda inteligente operada por WhatsApp, sin que el dueño tenga que hacer nada — la IA atiende, consulta disponibilidad y agenda sola.
+
+**Consumidor principal:** un agente de Claude (Claude API, Tool Use) que recibe mensajes por WhatsApp, interpreta la intención del usuario y ejecuta acciones sobre este backend. El backend está diseñado pensando en que quien lo consume es una IA — los errores deben ser descriptivos, los endpoints predecibles, las validaciones claras para que el modelo pueda corregir y reintentar.
+
+**Modelo de negocio:** el operador (dueño del SaaS) administra el acceso. Los negocios-cliente no tienen acceso directo al backend — toda interacción externa ocurre vía WhatsApp.
 
 **Ejemplos de negocios:**
 - Peluquería "Don Pelo": 4 barberos, cada uno con su horario
 - Juan el técnico de refrigeración: 1 profesional (él mismo), 1 servicio (visita técnica)
 
-El operador (dueño del sistema) es el único que administra el acceso. Los negocios-cliente no tienen acceso directo al backend — toda interacción externa ocurre vía WhatsApp.
+---
+
+## 2. MVP — Features implementadas
+
+| Módulo | Estado |
+|---|---|
+| Negocios (CRUD + api_key + whatsapp_number) | Implementado |
+| Profesionales (CRUD + horarios semanales) | Implementado |
+| Servicios (CRUD + duración variable) | Implementado |
+| Clientes (CRUD + find-or-create por teléfono) | Implementado |
+| Turnos (CRUD + validaciones de disponibilidad) | Implementado |
+| Disponibilidad (slots libres por fecha y servicio) | Implementado |
+| Agente IA (Tool Use loop sobre el backend) | Implementado |
+| Webhook WhatsApp — Twilio (adapter pattern) | Implementado |
+| Historial de conversación en PostgreSQL (JSONB) | Implementado |
 
 ---
 
-## 2. Stack y convenciones
+## 3. Próximos pasos
+
+| Feature | Prioridad |
+|---|---|
+| Cargar créditos en Anthropic y probar agente real en Postman | Alta |
+| Configurar cuenta Twilio + sandbox para pruebas reales de WhatsApp | Alta |
+| Agregar costo de tokens por negocio (tracking de uso de la IA) | Media |
+| Migrar a Meta WhatsApp Cloud API (~50-80 negocios activos) | Media |
+| Panel web de administración por negocio | Baja |
+
+---
+
+## 4. Deuda técnica
+
+| Item | Detalle |
+|---|---|
+| Tests | No hay tests automatizados. Priorizar integración sobre unitarios. |
+| Notificaciones | No se notifica al cliente/profesional cuando se cancela un turno |
+| Recordatorio de turno | No hay recordatorio 24hs antes |
+| Reasignación automática | Al desactivar un profesional, los turnos se cancelan pero no se reasignan |
+| Ausencias puntuales | No existe el concepto de día no laborable o vacaciones |
+| Rate limiting del webhook | Rate limit en memoria — se pierde al reiniciar el proceso |
+
+---
+
+## 5. Stack y convenciones
 
 - **Runtime:** Node.js + Express
 - **Base de datos:** PostgreSQL
-- **ORM:** Sequelize — toda interacción con la DB se hace a través de Modelos Sequelize, nunca con queries SQL en strings
+- **ORM:** Sequelize — toda interacción con la DB va a través de Modelos Sequelize, nunca SQL en strings (salvo queries de disponibilidad con `sequelize.query` donde es inevitable)
 - **Lenguaje:** JavaScript, CommonJS (`require`/`module.exports`), `'use strict'` en todos los archivos
 - **Variables de entorno:** `dotenv`, nunca hardcodear credenciales
-- **No usar:** TypeScript, ES Modules, Prisma, otros ORMs, frameworks adicionales sin consultar
+- **No usar sin consultar:** TypeScript, ES Modules, Prisma, otros ORMs, frameworks adicionales
 
-### Estructura de Sequelize
+---
+
+## 6. Estructura de carpetas
 
 ```
 src/
-  config/sequelize.js     — instancia Sequelize (dialecto postgres, vars de entorno)
-  models/
-    index.js              — carga modelos y define todas las asociaciones
-    Negocio.js            — tabla negocios
-    Profesional.js        — tabla profesionales
-    ProfesionalHorario.js — tabla profesional_horarios
-    Cliente.js            — tabla clientes
-    Servicio.js           — tabla servicios
-    Turno.js              — tabla turnos
+  config/sequelize.js      — instancia Sequelize
+  models/                  — modelos Sequelize + asociaciones en index.js
+  routes/                  — solo ruteo: recibe req, llama al service, devuelve res
+  services/                — lógica de negocio
+  conversation/store.js    — historial de conversación (carga, guarda, limpia)
+  agent/
+    tools.js               — definición de tools para Claude API
+    executor.js            — ejecuta cada tool llamando al service correspondiente
+    prompt.js              — arma el system prompt con contexto del negocio
+    runner.js              — loop de Tool Use: llama a Anthropic, ejecuta tools, itera
+  webhook/
+    index.js               — router Express del webhook
+    handler.js             — lógica central: rate limit, lookup de negocio, llama al runner
+    providers/twilio.js    — adaptador Twilio (parse, send, validate)
+  middlewares/
+    auth.js                — valida X-Admin-Secret
+    tenant.js              — resuelve negocio por X-Api-Key
+    errorHandler.js        — captura errores y responde { error: message }
+  app.js                   — setup Express, monta rutas
+db/
+  migrations/              — scripts SQL numerados (001_init.sql, 002_...)
+specs/                     — especificaciones por módulo (ver sección 12)
+scripts/
+  test-agent.js            — prueba del agente con mock de Anthropic (solo dev)
 ```
 
-**Convenciones de modelos:**
-- `timestamps: false` en todos (excepto donde existe `created_at`, usar `createdAt: 'created_at', updatedAt: false`)
-- `tableName` siempre explícito para evitar pluralización automática de Sequelize
+---
+
+## 7. Convenciones de Sequelize
+
+- `timestamps: false` en todos los modelos (o `updatedAt: 'updated_at'` donde aplique)
+- `tableName` siempre explícito para evitar pluralización automática
 - Asociaciones definidas únicamente en `models/index.js`
 - Para transacciones: `sequelize.transaction(async (t) => { ... })`
 - Para condiciones complejas: usar `Op` de Sequelize (`Op.gt`, `Op.in`, `Op.lt`, etc.)
 
-**Reglas de código:**
-- Sin comentarios salvo que el WHY no sea obvio
-- Sin manejo de errores para escenarios imposibles
-- Validar solo en boundaries del sistema (input del usuario, APIs externas)
-- No instalar dependencias sin avisar al usuario primero
-
 ---
 
-## 3. Estructura de carpetas
-
-```
-src/
-  config/sequelize.js   — Instancia Sequelize
-  models/               — Modelos Sequelize
-  routes/               — Solo ruteo: recibe req, llama al service, devuelve res
-  services/             — Lógica de negocio
-  middlewares/
-    errorHandler.js     — Middleware global: captura errores y responde con { error: message }
-    tenant.js           — Resuelve el negocio activo desde el header X-Api-Key
-  app.js                — Setup de Express, monta rutas, exporta app
-db/
-  migrations/           — Scripts SQL numerados (001_init.sql, 002_xxx.sql...)
-.env.example            — Template de variables de entorno
-```
-
----
-
-## 4. Modelo de datos
+## 8. Modelo de datos
 
 ```
 negocios
-  id, nombre, rubro, api_key (UNIQUE NOT NULL), whatsapp_number (UNIQUE, nullable), activo (bool), created_at
-  — whatsapp_number: número de WhatsApp del negocio (ej: "5491187654321")
-  — nullable hasta que el negocio configure su número de WhatsApp
+  id, nombre, rubro, api_key (UNIQUE), whatsapp_number (UNIQUE, nullable), activo, created_at
 
 profesionales
-  id, negocio_id (FK → negocios), nombre, activo (bool)
+  id, negocio_id (FK), nombre, activo
 
 profesional_horarios
-  id, profesional_id (FK), dia_semana (0-6), hora_inicio TIME, hora_fin TIME
-  — dia_semana: 0=domingo ... 6=sábado
-  — un profesional puede tener 0, 1 o 2 bloques por día (mañana y/o tarde)
-  — horario estándar: 10:00-13:00 y 16:00-21:00
+  id, profesional_id (FK), dia_semana (0=dom...6=sáb), hora_inicio TIME, hora_fin TIME
+  — un profesional puede tener múltiples bloques por día (mañana y/o tarde)
 
 servicios
-  id, negocio_id (FK → negocios), nombre, duracion_minutos, precio
-  — cada negocio define los suyos
+  id, negocio_id (FK), nombre, duracion_minutos, precio
+  — duracion_minutos: entero positivo sin restricción de múltiplo
 
 clientes
-  id, negocio_id (FK → negocios), nombre, telefono, email, created_at
-  — UNIQUE (negocio_id, telefono): el mismo número puede ser cliente de distintos negocios
+  id, negocio_id (FK), nombre, telefono, email, created_at
+  — UNIQUE (negocio_id, telefono)
 
 turnos
-  id, negocio_id (FK → negocios), cliente_id, profesional_id, servicio_id, fecha_hora, estado, created_at
+  id, negocio_id (FK), cliente_id, profesional_id, servicio_id, fecha_hora, estado, created_at
   — estado: pendiente | confirmado | cancelado
-  — negocio_id denormalizado para queries directas sin JOIN
+
+conversaciones
+  id, negocio_id (FK), telefono, messages (JSONB), updated_at
+  — UNIQUE (negocio_id, telefono)
+  — se limpia automáticamente después de 2hs de inactividad
 ```
 
 ---
 
-## 5. Autenticación y contexto de tenant
+## 9. Autenticación y tenant
 
-### Autenticación — ADMIN_SECRET
+### ADMIN_SECRET — rutas de admin de negocios
 
-El operador es el único consumidor del backend. Toda ruta (incluyendo admin) requiere el header:
+El header `X-Admin-Secret` valida al operador del sistema en `/api/admin/negocios/*`.
 
-```
-X-Admin-Secret: <valor de ADMIN_SECRET en .env>
-```
+### X-Api-Key — rutas REST del backend
 
-El middleware `auth.js` valida este header. Si no coincide, responde 401.
-El `ADMIN_SECRET` nunca se expone al cliente de WhatsApp ni aparece en el contexto de Claude.
+El header `X-Api-Key` identifica al negocio en todas las demás rutas REST. El middleware `tenant.js` resuelve el `negocio_id` y lo adjunta a `req.negocio`.
 
-**Excepción:** `/api/admin/negocios/*` usa `auth.js` directamente.
-Las demás rutas usan primero `tenant.js` (que implica que `auth.js` ya corrió antes en el pipeline).
+### Webhook — sin headers de auth
 
-### Identificación de tenant — whatsapp_number
-
-Cada negocio tiene un `whatsapp_number` único en la tabla `negocios`. Cuando llega un mensaje de WhatsApp:
-
-1. El webhook recibe el campo `to` (número de destino = número del negocio)
-2. El handler busca directamente en DB: `Negocio.findOne({ where: { whatsapp_number: to } })`
-3. Obtiene el `negocio_id` y lo usa para todas las operaciones de esa conversación
-
-**Decisión de arquitectura:** webhook y backend corren en el **mismo proceso Node.js** (Opción A). El lookup es una llamada directa a Sequelize, no un HTTP endpoint. Esto simplifica el MVP y permite refactorizar a servicios separados en el futuro sin cambiar la lógica de negocio.
-
-### Flujo del tenant middleware (rutas REST)
-
-El `tenant.js` actual resuelve el negocio por `api_key` (header `X-Api-Key`). Esto aplica a las rutas REST del backend cuando se las llama directamente (ej: desde Postman durante desarrollo). El webhook handler interno no pasa por este middleware — resuelve el negocio por `whatsapp_number` y opera directo sobre los services.
-
-Todos los services filtran por `negocio_id`. El `negocio_id` **nunca** se envía en el body ni en la URL — siempre viene del middleware o del lookup del webhook.
+El webhook identifica al negocio por `whatsapp_number` (campo `to` del mensaje entrante). No pasa por `tenant.js` — hace un lookup directo a Sequelize. El `ADMIN_SECRET` y la `api_key` nunca aparecen en el contexto del agente de IA.
 
 ---
 
-## 6. Módulo Negocios — SPEC APROBADA
+## 10. Manejo de errores
 
-**Prefijo:** `/api/admin/negocios`
-**Auth:** `X-Admin-Secret` header requerido en todos los endpoints
-**Estado:** APPROVED — implementado
-
-### Endpoints
-
-| Método | Ruta | Descripción |
-|---|---|---|
-| POST | /api/admin/negocios | Crear negocio + generar api_key |
-| GET | /api/admin/negocios | Listar todos los negocios |
-| GET | /api/admin/negocios/:id | Obtener un negocio |
-| PUT | /api/admin/negocios/:id | Actualizar nombre, rubro, whatsapp_number o activo |
-
-> Sin DELETE — nunca se borra, solo se desactiva vía `PUT { "activo": false }`.
-
-### POST /api/admin/negocios
+Todos los errores pasan por `middlewares/errorHandler.js` que responde:
 
 ```json
-// Request
-{ "nombre": "Peluquería Don Pelo", "rubro": "peluquería", "whatsapp_number": "5491187654321" }
-
-// Response 201
-{
-  "id": 1,
-  "nombre": "Peluquería Don Pelo",
-  "rubro": "peluquería",
-  "whatsapp_number": "5491187654321",
-  "api_key": "sk_...",
-  "activo": true,
-  "created_at": "2026-05-15T12:00:00.000Z"
-}
+{ "error": "mensaje descriptivo" }
 ```
 
-> La `api_key` se devuelve solo en la creación — debe guardarse. Se usa como `X-Api-Key` para identificar al negocio en las rutas REST (desarrollo/Postman). El webhook usa `whatsapp_number` en su lugar.
-
-### PUT /api/admin/negocios/:id
-
-```json
-// Request (todos los campos opcionales)
-{ "nombre": "Don Pelo Barber", "whatsapp_number": "5491187654321", "activo": false }
-
-// Response 200: negocio actualizado (sin api_key)
-// Response 404: { "error": "Negocio not found" }
-```
-
-### Reglas de negocio
-
-- **RN-1:** `nombre` y `rubro` son obligatorios al crear.
-- **RN-2:** `api_key` se genera automáticamente — nunca la envía el cliente.
-- **RN-3:** `whatsapp_number` es opcional al crear. Si se provee, debe ser único en todo el sistema.
-- **RN-4:** Un negocio con `activo: false` rechaza todos los requests con su api_key (el tenant middleware devuelve 401).
+Los services lanzan errores con `statusCode` para que el handler los mapee correctamente. Los errores deben ser lo suficientemente descriptivos para que el agente de IA pueda entender qué falló y reintentar.
 
 ---
 
-## 7. Módulo Turnos — SPEC APROBADA
+## 11. Metodología de trabajo (SDD)
 
-> **Tenant:** `negocio_id` resuelto por middleware. No va en body ni URL.
+1. Antes de implementar cualquier módulo nuevo, definir la spec en `/specs/{modulo}/{modulo}.md`
+2. El agente presenta la spec y espera confirmación explícita antes de implementar
+3. Un módulo a la vez, sin avanzar sin "ok, seguí"
+4. No instalar dependencias sin avisar cuáles y para qué
 
-**Prefijo:** `/api/turnos`
-**Auth:** `X-Api-Key` header requerido (resuelve tenant)
-**Estado:** APPROVED — implementado
+---
 
-### Endpoints
+## 12. Specs por módulo
 
-| Método | Ruta | Descripción |
-|---|---|---|
-| GET | /api/turnos | Listar turnos con filtros opcionales |
-| GET | /api/turnos/:id | Obtener turno por ID |
-| POST | /api/turnos | Crear turno |
-| PUT | /api/turnos/:id | Modificar fecha/hora o estado |
-| DELETE | /api/turnos/:id | Cancelar turno (soft delete) |
-
-### GET /api/turnos — filtros por query string
-
-| Parámetro | Tipo | Ejemplo |
-|---|---|---|
-| fecha | YYYY-MM-DD | ?fecha=2025-06-10 |
-| profesional_id | integer | ?profesional_id=2 |
-| estado | string | ?estado=pendiente |
-| cliente_id | integer | ?cliente_id=1 |
-
-### POST /api/turnos
-
-```json
-// Request body
-{
-  "cliente_id": 1,
-  "profesional_id": 2,
-  "servicio_id": 1,
-  "fecha_hora": "2025-06-10T10:00:00"
-}
-
-// Response 201
-{
-  "id": 5,
-  "cliente_id": 1,
-  "profesional_id": 2,
-  "servicio_id": 1,
-  "fecha_hora": "2025-06-10T10:00:00",
-  "estado": "pendiente",
-  "created_at": "2025-06-01T12:00:00.000Z"
-}
-```
-
-### PUT /api/turnos/:id
-
-```json
-// Request body (todos los campos opcionales)
-{ "fecha_hora": "2025-06-10T11:00:00", "estado": "confirmado" }
-
-// Response 200: turno actualizado completo
-// Response 404: { "error": "Turno no encontrado" }
-// Response 409: { "error": "El profesional no tiene disponibilidad en ese horario" }
-```
-
-### DELETE /api/turnos/:id
-
-```
-Response 204: sin body (turno marcado como cancelado, no se borra)
-Response 404: { "error": "Turno no encontrado" }
-```
-
-### Transiciones de estado válidas
-
-```
-pendiente  → confirmado
-pendiente  → cancelado
-confirmado → cancelado
-cancelado  → (bloqueado)
-```
-
-### Reglas de negocio
-
-1. **Obligatorios al crear:** `cliente_id`, `profesional_id`, `servicio_id`, `fecha_hora`.
-2. **fecha_hora en el futuro:** No se pueden crear turnos en el pasado.
-3. **Profesional activo:** El profesional debe tener `activo = true`.
-4. **Dentro del horario:** `fecha_hora` debe caer dentro de un bloque de `profesional_horarios` para ese día. Error 400 si está fuera de horario.
-5. **Sin solapamiento del profesional:** Error 409 si hay conflicto de horario con otro turno activo.
-6. **Sin solapamiento del cliente:** El cliente no puede tener otro turno activo en el mismo rango horario. Error 409.
-7. **Modificar turno:** Al cambiar `fecha_hora`, se revalidan las reglas 2, 3, 4, 5 y 6.
-8. **No reabrir cancelado:** Un turno `cancelado` no puede cambiar de estado.
-9. **Soft delete:** DELETE pone `estado = 'cancelado'`. Nunca se borran registros.
-10. **Aislamiento:** `profesional_id` y `cliente_id` deben pertenecer al mismo negocio — de lo contrario 404.
-
-### Errores esperados
-
-| Código | Caso |
+| Módulo | Archivo |
 |---|---|
-| 400 | Campos faltantes, fecha en el pasado, fuera del horario del profesional |
-| 401 | API key inválida o negocio inactivo |
-| 404 | Turno, cliente, profesional o servicio no encontrado (o de otro negocio) |
-| 409 | Solapamiento de turno (profesional o cliente) |
-| 422 | Transición de estado inválida |
-
----
-
-## 8. Módulo Profesionales — SPEC APROBADA
-
-> **Tenant:** `negocio_id` resuelto por middleware. No va en body ni URL.
-
-**Prefijo:** `/api/admin/profesionales`
-**Auth:** `X-Api-Key` header requerido (resuelve tenant)
-**Estado:** APPROVED — implementado
-
-### Endpoints
-
-| Método | Ruta | Descripción |
-|---|---|---|
-| GET | /api/admin/profesionales | Listar todos con sus horarios |
-| GET | /api/admin/profesionales/:id | Obtener uno con su horario |
-| POST | /api/admin/profesionales | Crear profesional + horario inicial |
-| PUT | /api/admin/profesionales/:id | Editar nombre o activar/desactivar |
-| POST | /api/admin/profesionales/:id/horarios | Agregar un bloque de horario |
-| PUT | /api/admin/profesionales/:id/horarios/:horario_id | Modificar un bloque |
-| DELETE | /api/admin/profesionales/:id/horarios/:horario_id | Eliminar un bloque |
-
-> Sin DELETE del profesional completo — nunca se borra, solo se desactiva vía `PUT { "activo": false }`.
-
-### POST /api/admin/profesionales
-
-```json
-// Request
-{
-  "nombre": "María González",
-  "horarios": [
-    { "dia_semana": 1, "hora_inicio": "10:00", "hora_fin": "13:00" },
-    { "dia_semana": 1, "hora_inicio": "16:00", "hora_fin": "21:00" }
-  ]
-}
-// Response 201: profesional completo con horarios
-```
-
-### PUT /api/admin/profesionales/:id
-
-```json
-// Request (campos opcionales)
-{ "nombre": "María G.", "activo": false }
-// Si activo pasa a false → cancela todos los turnos futuros
-// Response 200: { id, nombre, activo, turnos_cancelados: 3 }
-```
-
-### POST /api/admin/profesionales/:id/horarios
-
-```json
-// Request
-{ "dia_semana": 4, "hora_inicio": "10:00", "hora_fin": "13:00" }
-// Response 201: bloque creado con su id
-```
-
-### DELETE /api/admin/profesionales/:id/horarios/:horario_id
-
-```
-Response 204: bloque eliminado
-Response 404: bloque no encontrado
-Response 409: existen turnos futuros en ese bloque horario
-```
-
-### Reglas de negocio
-
-- **RN-1:** `horarios` no puede ser vacío al crear.
-- **RN-2:** Dos bloques del mismo profesional no pueden solaparse en el mismo día.
-- **RN-3:** Solo profesionales con `activo = true` pueden recibir nuevos turnos.
-- **RN-4:** Al desactivar, todos los turnos futuros (`pendiente` o `confirmado`) se cancelan.
-- **RN-5:** No se puede eliminar un bloque si existen turnos futuros en ese rango horario.
-- **RN-6:** Un profesional solo es accesible desde el negocio al que pertenece.
-
-### Fuera de scope (MVP)
-- Ausencias puntuales / vacaciones
-- Notificaciones WhatsApp al cancelar por desactivación
-- Reasignación automática al desactivar un profesional
-
----
-
-## 9. Módulo Clientes — SPEC APROBADA
-
-> **Tenant:** `negocio_id` resuelto por middleware. No va en body ni URL.
-
-**Prefijo:** `/api/clientes`
-**Auth:** `X-Api-Key` header requerido (resuelve tenant)
-**Estado:** APPROVED — implementado
-
-### Endpoints
-
-| Método | Ruta | Descripción |
-|---|---|---|
-| GET | /api/clientes | Listar clientes del negocio |
-| GET | /api/clientes/:id | Obtener por ID |
-| POST | /api/clientes | Crear cliente |
-| PUT | /api/clientes/:id | Actualizar datos |
-| POST | /api/clientes/identificar | Find-or-create por teléfono (uso principal de la IA) |
-
-### POST /api/clientes/identificar
-
-Endpoint diseñado para ser llamado por la IA al inicio de cada conversación de WhatsApp.
-Los datos vienen directamente del webhook: `wa_id` como `telefono`, `profile.name` como `nombre`.
-
-```json
-// Request
-{ "telefono": "16505551234", "nombre": "Sheena Nelson" }
-
-// Response 200 — cliente existente
-{ "id": 3, "nombre": "Sheena Nelson", "telefono": "16505551234", "email": null, "created_at": "...", "es_nuevo": false }
-
-// Response 201 — cliente nuevo
-{ "id": 4, "nombre": "Sheena Nelson", "telefono": "16505551234", "email": null, "created_at": "...", "es_nuevo": true }
-```
-
-> `es_nuevo: true` permite a la IA personalizar el saludo para clientes nuevos vs. recurrentes.
-
-### Reglas de negocio
-
-- **RN-1:** `telefono` es único **por negocio** — un mismo número puede ser cliente de distintos negocios como registros independientes.
-- **RN-2:** `telefono` y `nombre` son obligatorios al crear.
-- **RN-3:** `/identificar` usa `(telefono, negocio_id)` como clave. Si existe, lo devuelve sin modificar el nombre. Si no, lo crea.
-- **RN-4:** `/identificar` nunca sobreescribe el nombre — si el cliente fue renombrado manualmente, ese nombre prevalece.
-
-### Fuera de scope (MVP)
-- Historial de turnos embebido en la respuesta
-- Bloqueo de clientes
-- Campos adicionales (dirección, notas)
-
----
-
-## 10. Módulo Disponibilidad — SPEC APROBADA
-
-> **Tenant:** `negocio_id` resuelto por middleware. No va en body ni URL.
-
-**Prefijo:** `/api/disponibilidad`
-**Auth:** `X-Api-Key` header requerido (resuelve tenant)
-**Estado:** APPROVED — implementado (pendiente actualizar por cambio de servicio_id)
-
-### Endpoint
-
-```
-GET /api/disponibilidad?fecha=2026-05-19&servicio_id=1
-GET /api/disponibilidad?fecha=2026-05-19&servicio_id=1&profesional_id=1
-```
-
-### Parámetros
-
-| Parámetro | Tipo | Requerido | Descripción |
-|---|---|---|---|
-| fecha | YYYY-MM-DD | Sí | Fecha a consultar |
-| servicio_id | integer | Sí | Define la duración del slot |
-| profesional_id | integer | No | Filtra a un profesional específico |
-
-### Lógica de cálculo
-
-1. Obtener `duracion_minutos` del servicio solicitado
-2. Obtener bloques de horario del/los profesional/es activos del negocio para ese `dia_semana`
-3. Generar slots de `duracion_minutos` dentro de cada bloque (último slot válido: `hora + duracion <= hora_fin del bloque`)
-4. Eliminar slots que se solapan con turnos existentes (`pendiente` o `confirmado`)
-5. Devolver solo los slots libres
-
-### Response sin `profesional_id`
-
-```json
-{
-  "fecha": "2026-05-19",
-  "servicio": { "id": 1, "nombre": "Corte de pelo", "duracion_minutos": 30 },
-  "slots": [
-    { "hora": "10:00", "profesionales": [{ "id": 1, "nombre": "María González" }, { "id": 2, "nombre": "Carlos López" }] },
-    { "hora": "10:30", "profesionales": [{ "id": 2, "nombre": "Carlos López" }] }
-  ]
-}
-```
-
-> La IA toma `slots[X].profesionales[0]` para auto-asignar cuando el cliente no especificó profesional.
-
-### Response con `profesional_id`
-
-```json
-{
-  "fecha": "2026-05-19",
-  "servicio": { "id": 1, "nombre": "Corte de pelo", "duracion_minutos": 30 },
-  "profesional": { "id": 1, "nombre": "María González" },
-  "slots": ["10:00", "10:30", "11:00", "14:00", "14:30"]
-}
-```
-
-### Reglas de negocio
-
-- **RN-1:** `fecha` y `servicio_id` son obligatorios → 400 si falta alguno.
-- **RN-2:** `fecha` no puede ser en el pasado → 400.
-- **RN-3:** Solo se incluyen profesionales con `activo = true` del negocio del tenant.
-- **RN-4:** Un slot está ocupado si existe un turno activo que se solapa con `hora → hora + duracion_minutos`.
-- **RN-5:** El último slot válido de un bloque es aquel cuyo fin no excede `hora_fin` del bloque.
-- **RN-6:** `servicio_id` debe pertenecer al negocio del tenant → 404 si no existe.
-
-### Flujos de la IA usando este endpoint
-
-**Sin profesional especificado** ("quiero un corte el martes a la tarde"):
-1. `GET /api/servicios` → identifica "Corte de pelo" → `servicio_id=1`
-2. `GET /api/disponibilidad?fecha=2026-05-20&servicio_id=1` → filtra slots con hora >= 16:00
-3. Toma `slots[0].profesionales[0]` → auto-asigna
-4. `POST /api/turnos` → guarda sin preguntar
-
-**Con profesional especificado** ("quiero con Jony el martes a la tarde"):
-1. `GET /api/servicios` → identifica servicio → `servicio_id`
-2. `GET /api/admin/profesionales` → busca "Jony" por nombre → `profesional_id=2`
-3. `GET /api/disponibilidad?fecha=2026-05-20&servicio_id=1&profesional_id=2` → filtra hora >= 16:00
-4. IA sugiere horarios al cliente y espera respuesta
-5. `POST /api/turnos` → guarda con ese profesional
-
-### Fuera de scope (MVP)
-- Filtros por franja horaria en el endpoint
-
----
-
-## 11. Módulo Servicios — SPEC APROBADA
-
-> **Tenant:** `negocio_id` resuelto por middleware. No va en body ni URL.
-
-**Prefijo público:** `/api/servicios` — requiere `X-Api-Key`
-**Prefijo admin:** `/api/admin/servicios` — requiere `X-Api-Key`
-**Estado:** APPROVED — pendiente implementar
-
-### Endpoints
-
-| Método | Ruta | Descripción |
-|---|---|---|
-| GET | /api/servicios | Listar servicios del negocio |
-| POST | /api/admin/servicios | Crear servicio |
-| PUT | /api/admin/servicios/:id | Editar nombre, duración o precio |
-| DELETE | /api/admin/servicios/:id | Eliminar servicio |
-
-### GET /api/servicios
-
-```json
-// Response 200
-[
-  { "id": 1, "nombre": "Corte de pelo", "duracion_minutos": 30, "precio": "3500.00" },
-  { "id": 2, "nombre": "Instalación de aire acondicionado", "duracion_minutos": 120, "precio": "25000.00" }
-]
-```
-
-> La IA llama este endpoint al inicio de la conversación para saber qué servicios puede ofrecer y sus duraciones. `servicio_id` se usa luego en `/api/disponibilidad`.
-
-### POST /api/admin/servicios
-
-```json
-// Request
-{ "nombre": "Coloración", "duracion_minutos": 90, "precio": 12000 }
-
-// Response 201
-{ "id": 3, "nombre": "Coloración", "duracion_minutos": 90, "precio": "12000.00" }
-```
-
-### PUT /api/admin/servicios/:id
-
-```json
-// Request (campos opcionales)
-{ "precio": 13500 }
-
-// Response 200: servicio actualizado
-// Response 404: { "error": "Service not found" }
-```
-
-### DELETE /api/admin/servicios/:id
-
-```
-Response 204: servicio eliminado
-Response 404: { "error": "Service not found" }
-Response 409: { "error": "Service has active appointments" }
-```
-
-### Reglas de negocio
-
-- **RN-1:** `nombre` y `duracion_minutos` son obligatorios al crear.
-- **RN-2:** `precio` es opcional (puede ser null).
-- **RN-3:** `duracion_minutos` debe ser un entero positivo mayor a 0. No hay restricción de múltiplo — cada negocio define la duración real de sus servicios.
-- **RN-4:** No se puede eliminar un servicio si existen turnos `pendiente` o `confirmado` que lo referencian → 409.
-- **RN-5:** Un servicio solo es accesible desde el negocio al que pertenece → 404 si no existe en el tenant actual.
-
-### Fuera de scope (MVP)
-- Activar/desactivar servicio sin eliminarlo
-- Precio variable según profesional
-
----
-
-## 12. Metodología de trabajo
-
-**SDD (Spec-Driven Development):**
-1. Antes de implementar cualquier módulo, definir la spec juntos
-2. El agente presenta la spec y espera confirmación explícita del usuario
-3. Solo implementar después de aprobación
-4. Un módulo a la vez, sin avanzar sin "ok, seguí"
-
----
-
-## 13. Pendientes
-
-### Backend MVP
-
-| Módulo | Estado |
-|---|---|
-| Negocios | Implementado |
-| Servicios | SPEC aprobada — pendiente implementar |
-| Turnos | Implementado |
-| Profesionales | Implementado |
-| Clientes | Implementado |
-| Disponibilidad | Implementado |
-
-### Próximos pasos
-
-1. **Capa de IA** — Tool Use con Claude API + integración WhatsApp
-
-### Capa de IA — Tool Use (después del MVP backend)
-
-El backend va a ser consumido por un agente de Claude API mediante **Tool Use**. Cada endpoint relevante se expone como una "tool" con su descripción en lenguaje natural. El contexto del negocio (rubro, servicios, horarios) se inyecta en el system prompt.
-
-**Flujo para "quiero agendar un turno el martes con Jony por la tarde":**
-1. Buscar profesional por nombre → `GET /api/admin/profesionales`
-2. Consultar disponibilidad → `GET /api/disponibilidad?fecha=...&profesional_id=...`
-3. Confirmar horario con el usuario
-4. Identificar o crear el cliente por teléfono → `POST /api/clientes/identificar`
-5. Crear el turno → `POST /api/turnos`
-
-**Pendiente implementar:**
-- [ ] Definir las tools de Claude API para cada endpoint
-- [ ] System prompt con contexto del negocio (rubro, servicios, horarios)
-- [ ] Integración con WhatsApp (Twilio o Meta API)
-- [ ] Manejo de contexto de conversación (historial por número de teléfono)
-- [ ] Notificaciones: recordatorio de turno 24hs antes
-
-### Mejoras futuras (post-MVP)
-
-- [ ] Panel web de administración por negocio
-- [ ] Reasignación automática de turnos al desactivar un profesional
-- [ ] Ausencias puntuales / vacaciones por profesional
-- [ ] Testing con Jest (unitario + integración)
+| Negocios | [specs/negocios/negocios.md](specs/negocios/negocios.md) |
+| Profesionales | [specs/profesionales/profesionales.md](specs/profesionales/profesionales.md) |
+| Servicios | [specs/servicios/servicios.md](specs/servicios/servicios.md) |
+| Clientes | [specs/clientes/clientes.md](specs/clientes/clientes.md) |
+| Turnos | [specs/turnos/turnos.md](specs/turnos/turnos.md) |
+| Disponibilidad | [specs/disponibilidad/disponibilidad.md](specs/disponibilidad/disponibilidad.md) |
+| Agente IA | [specs/ia/agent.md](specs/ia/agent.md) |
+| Webhook WhatsApp | [specs/whatsapp/webhook.md](specs/whatsapp/webhook.md) |

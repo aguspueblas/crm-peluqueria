@@ -28,21 +28,9 @@ app.get('/health', (_req, res) => {
 // Admin routes for managing negocios: require ADMIN_SECRET, no tenant context
 app.use('/api/admin/negocios', auth, negociosAdminRoutes);
 
-// All other routes: require valid X-Api-Key (tenant resolution)
-app.use(tenant);
-
-app.use('/api/turnos',              turnosRoutes);
-app.use('/api/clientes',            clientesRoutes);
-app.use('/api/disponibilidad',      disponibilidadRoutes);
-app.use('/api/servicios',           serviciosRoutes);
-app.use('/api/admin/profesionales', profesionalesAdminRoutes);
-app.use('/api/admin/servicios',     serviciosAdminRoutes);
-
-app.use('/webhook/whatsapp', webhookRoutes);
-
-// Ruta de test del agente — solo disponible en desarrollo
+// Dev-only agent test route — no tenant middleware, simulates webhook flow
 if (process.env.NODE_ENV === 'development') {
-  const runner   = require('./agent/runner');
+  const runner      = require('./agent/runner');
   const { Negocio } = require('./models');
 
   app.post('/dev/agent', async (req, res, next) => {
@@ -57,6 +45,18 @@ if (process.env.NODE_ENV === 'development') {
     }
   });
 }
+
+// All other routes: require valid X-Api-Key (tenant resolution)
+app.use(tenant);
+
+app.use('/api/turnos',              turnosRoutes);
+app.use('/api/clientes',            clientesRoutes);
+app.use('/api/disponibilidad',      disponibilidadRoutes);
+app.use('/api/servicios',           serviciosRoutes);
+app.use('/api/admin/profesionales', profesionalesAdminRoutes);
+app.use('/api/admin/servicios',     serviciosAdminRoutes);
+
+app.use('/webhook/whatsapp', webhookRoutes);
 
 app.use(errorHandler);
 
