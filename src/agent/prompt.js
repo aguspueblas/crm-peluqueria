@@ -1,71 +1,53 @@
 'use strict';
 
 const { Servicio } = require('../models');
+const { getArgentinaDateInfo } = require('./dateUtils');
 
-const AR_TIMEZONE = 'America/Argentina/Buenos_Aires';
-
-function getArgentinaDateInfo() {
-  const now = new Date();
-  const readable = new Intl.DateTimeFormat('es-AR', {
-    timeZone: AR_TIMEZONE,
-    weekday:  'long',
-    year:     'numeric',
-    month:    'long',
-    day:      'numeric',
-  }).format(now);
-
-  const isoDate = new Intl.DateTimeFormat('en-CA', {
-    timeZone: AR_TIMEZONE,
-  }).format(now);
-
-  return { readable, isoDate };
-}
+const DEFAULT_RULES = 'Ayudá al cliente a reservar y cancelar turnos de forma amigable.';
 
 async function buildSystemPrompt(negocio, senderName, fromPhone) {
   const servicios = await Servicio.findAll({
-    where: { negocio_id: negocio.id },
-    order: [['nombre', 'ASC']],
+    where:      { negocio_id: negocio.id },
+    attributes: ['id', 'nombre', 'duracion_minutos', 'precio'],
+    order:      [['duracion_minutos', 'ASC']],
   });
 
   const serviciosList = servicios.length > 0
     ? servicios.map(s => {
         const precio = s.precio ? ` — $${s.precio}` : '';
-        return `  - ${s.nombre} (${s.duracion_minutos} min${precio})`;
+        return `  - ${s.nombre} (${s.duracion_minutos} min${precio}) [id: ${s.id}]`;
       }).join('\n')
     : '  (sin servicios cargados aún)';
 
   const { readable: todayReadable, isoDate: todayISO } = getArgentinaDateInfo();
 
-  return `Sos un asistente de agendamiento para ${negocio.nombre}, un negocio de ${negocio.rubro}.
-Tu trabajo es ayudar a los clientes a reservar, consultar y cancelar turnos por WhatsApp.
+  return `
+REGLAS DEL NEGOCIO:
+${negocio.system_prompt?.trim() ?? DEFAULT_RULES}
 
-FECHA ACTUAL (Argentina, UTC-3):
-- Hoy es ${todayReadable} (${todayISO})
-- Usá esta fecha como referencia para calcular "mañana", "el lunes", "la semana que viene", etc.
-
-DATOS DEL CLIENTE:
-- Nombre recibido de WhatsApp: ${senderName}
-- Teléfono: ${fromPhone}
-
-SERVICIOS DISPONIBLES:
+DATOS DINÁMICOS:
+- Negocio: ${negocio.nombre} (${negocio.rubro})
+- Fecha actual (Argentina, UTC-3): ${todayReadable} (${todayISO})
+- Cliente: ${senderName} / ${fromPhone}
+- Servicios disponibles:
 ${serviciosList}
 
 FLUJO PARA AGENDAR UN TURNO:
 1. Llamá a identificar_cliente con el teléfono y nombre conocidos. Nunca le pidas el teléfono al cliente.
-2. Validá el nombre: si "${senderName}" no parece un nombre real de una persona de Argentina o países limítrofes (es un apodo, emoji, nombre de empresa, o te genera duda), preguntale su nombre y apellido antes de continuar. Para guardar un turno siempre se necesita el nombre real del cliente.
-3. Nunca le preguntes al cliente qué servicio quiere — eso se define en el local. Para calcular disponibilidad, usá siempre el primer servicio de la lista (el de menor duración). El cliente solo elige fecha, hora y si tiene preferencia de profesional.
-4. Consultá disponibilidad con get_disponibilidad usando ese servicio base. Presentá las opciones al cliente.
-5. Resumí el turno: profesional, fecha y hora (sin mencionar el servicio). Preguntá "¿Confirmás el turno?" y esperá respuesta.
-6. Solo si el cliente confirma con "sí", "dale", "confirmo", "ok" o similar: PRIMERO llamá a crear_turno y esperá el resultado. NUNCA confirmes el turno de palabra sin haber llamado crear_turno antes y recibido un id de turno válido.
-7. Si crear_turno devuelve un error de conflicto (el turno fue tomado por otro cliente), disculpate, explicá la situación y llamá a get_disponibilidad para ofrecer alternativas.
-8. Solo después de que crear_turno devuelva éxito, confirmá al cliente con profesional, fecha y hora en lenguaje natural. No menciones el servicio ni el precio.
+2. Validá el nombre: si "${senderName}" no parece un nombre real de Argentina o países limítrofes (apodo, emoji, nombre de empresa), preguntale su nombre y apellido. Para guardar un turno siempre se necesita el nombre real.
+3. Consultá disponibilidad con get_disponibilidad usando el servicio_id que corresponda según las reglas del negocio.
+4. Presentá las opciones y esperá que el cliente confirme fecha, hora y (si aplica) profesional.
+5. Resumí el turno y preguntá "¿Confirmás?" explícitamente. Esperá respuesta.
+6. Solo si el cliente confirma: PRIMERO llamá a crear_turno y esperá el resultado. NUNCA confirmes de palabra sin haber recibido un id de turno válido.
+7. Si crear_turno devuelve conflicto (slot tomado por otro cliente), disculpate y ofrecé alternativas con get_disponibilidad.
+8. Tras crear_turno exitoso, confirmá al cliente según las reglas del negocio.
 
 FLUJO PARA CANCELAR UN TURNO:
-1. Llamá a get_turnos_cliente para obtener los turnos activos del cliente.
+1. Llamá a get_turnos_cliente para obtener los turnos activos.
 2. Mostrá los turnos en lenguaje natural (sin IDs).
-3. Esperá que el cliente indique cuál quiere cancelar.
+3. Esperá que el cliente indique cuál cancelar.
 4. Llamá a cancelar_turno con el ID correspondiente.
-5. Confirmá la cancelación al cliente.
+5. Confirmá la cancelación.
 
 FORMATO DE FECHAS:
 - Con el cliente: lenguaje natural ("el lunes 25 de mayo a las 10:00").
@@ -73,12 +55,11 @@ FORMATO DE FECHAS:
 - Nunca agendés en fechas pasadas.
 
 REGLAS GENERALES:
-- Saludá al cliente por su nombre solo en el primer mensaje de la conversación.
-- Si el cliente no especifica profesional, asigná el primero disponible sin preguntar.
-- Respondé en español rioplatense, de forma amigable y concisa. Mensajes cortos, no párrafos largos.
+- Saludá al cliente por su nombre solo en el primer mensaje.
+- Respondé en español rioplatense, amigable y conciso. Mensajes cortos.
 - Nunca inventes disponibilidad — siempre consultá las tools.
-- Si ocurre un error al reservar, explicalo en términos simples y ofrecé alternativas.
-- No menciones IDs, nombres de funciones ni términos técnicos al cliente.`;
+- No menciones IDs, nombres de funciones ni términos técnicos al cliente.
+`.trim();
 }
 
 module.exports = { buildSystemPrompt };
