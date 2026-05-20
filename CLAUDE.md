@@ -185,7 +185,121 @@ Los services lanzan errores con `statusCode` para que el handler los mapee corre
 
 ---
 
-## 12. Specs por módulo
+## 12. Deploy del servidor (se hace una vez)
+
+### 12.1 Pasos de deploy en Railway
+
+1. Crear proyecto en [Railway](https://railway.app) → **New Project → Deploy from GitHub repo**
+2. Agregar plugin PostgreSQL: dentro del proyecto → **New → Database → PostgreSQL**
+3. Vincular la DB al servicio: en el servicio → **Variables → Reference → Postgres → DATABASE_URL**
+4. Habilitar red pública en Postgres: servicio Postgres → **Settings → Public Networking → Enable**
+5. Correr las migraciones desde la máquina local (requiere la URL pública de Postgres):
+   ```bash
+   cd /ruta/al/proyecto && DATABASE_URL="postgresql://postgres:PASSWORD@junction.proxy.rlwy.net:PORT/railway" node -e "
+   const { Sequelize } = require('sequelize');
+   const fs = require('fs');
+   const path = require('path');
+   const db = new Sequelize(process.env.DATABASE_URL, { dialect: 'postgres', logging: false, dialectOptions: { ssl: { require: true, rejectUnauthorized: false } } });
+   const migrationsDir = path.join(process.cwd(), 'db/migrations');
+   const files = fs.readdirSync(migrationsDir).sort();
+   (async () => {
+     await db.authenticate();
+     for (const file of files) {
+       const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
+       await db.query(sql);
+       console.log('OK:', file);
+     }
+     await db.close();
+   })().catch(e => { console.error(e.message); process.exit(1); });
+   "
+   ```
+6. Cargar variables de entorno en Railway → servicio backend → **Variables**:
+
+   | Variable | Valor |
+   |---|---|
+   | `NODE_ENV` | `production` |
+   | `PORT` | `8080` |
+   | `ANTHROPIC_API_KEY` | key de Anthropic |
+   | `ADMIN_SECRET` | secreto del operador (inventarlo, guardarlo bien) |
+   | `WHATSAPP_PROVIDER` | `twilio` |
+   | `TWILIO_ACCOUNT_SID` | desde Twilio Console |
+   | `TWILIO_AUTH_TOKEN` | desde Twilio Console |
+   | `TWILIO_WHATSAPP_FROM` | `whatsapp:+14155238886` (sandbox) |
+
+7. Railway hace redeploy automático al guardar variables. Verificar que el servidor responde en la URL pública del servicio.
+
+---
+
+---
+
+## 13. Onboarding de cliente nuevo (se repite por cada negocio)
+
+Una vez el servidor está corriendo, dar de alta un negocio nuevo con este flujo:
+
+**Paso 1 — Crear el negocio:**
+```bash
+curl -X POST https://TU-URL.railway.app/api/admin/negocios \
+  -H "X-Admin-Secret: TU_ADMIN_SECRET" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "nombre": "Nombre del Negocio",
+    "rubro": "peluqueria",
+    "whatsapp_number": "+5491112345678",
+    "system_prompt": "Reglas del negocio..."
+  }'
+```
+Guardar el `api_key` que devuelve — es el identificador del negocio para las rutas REST.
+
+**Paso 2 — Cargar un profesional:**
+```bash
+curl -X POST https://TU-URL.railway.app/api/profesionales \
+  -H "X-Api-Key: API_KEY_DEL_NEGOCIO" \
+  -H "Content-Type: application/json" \
+  -d '{ "nombre": "Nombre Profesional" }'
+```
+
+**Paso 3 — Cargar horarios del profesional** (un registro por bloque horario):
+```bash
+curl -X POST https://TU-URL.railway.app/api/profesionales/ID/horarios \
+  -H "X-Api-Key: API_KEY_DEL_NEGOCIO" \
+  -H "Content-Type: application/json" \
+  -d '{ "dia_semana": 1, "hora_inicio": "09:00", "hora_fin": "18:00" }'
+```
+`dia_semana`: 0=domingo, 1=lunes ... 6=sábado.
+
+**Paso 4 — Cargar servicios:**
+```bash
+curl -X POST https://TU-URL.railway.app/api/servicios \
+  -H "X-Api-Key: API_KEY_DEL_NEGOCIO" \
+  -H "Content-Type: application/json" \
+  -d '{ "nombre": "Corte de pelo", "duracion_minutos": 30, "precio": 5000 }'
+```
+
+**Paso 5 — Configurar el system_prompt** (reglas del negocio para el agente):
+```bash
+curl -X PUT https://TU-URL.railway.app/api/admin/negocios/ID \
+  -H "X-Admin-Secret: TU_ADMIN_SECRET" \
+  -H "Content-Type: application/json" \
+  -d '{ "system_prompt": "Sos el asistente virtual de X. El servicio base es Y (id: Z). Si el cliente no especifica servicio, usá siempre el id Z." }'
+```
+
+**Paso 6 — Configurar Twilio:**
+- En Twilio Console → Messaging → Sandbox → configurar el webhook a:
+  `https://TU-URL.railway.app/webhook/whatsapp`
+- El número de sandbox es `whatsapp:+14155238886`
+- Para producción: solicitar número dedicado en Twilio (requiere aprobación de Meta)
+
+---
+
+---
+
+## 14. Deuda técnica de infraestructura
+
+Las migraciones hoy se corren manualmente (ver sección 12). Pendiente: agregar un script `scripts/migrate.js` que corra al iniciar el servidor en producción o como paso de build en Railway.
+
+---
+
+## 15. Specs por módulo
 
 | Módulo | Archivo |
 |---|---|

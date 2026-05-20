@@ -2,7 +2,11 @@
 
 const twilio = require('twilio');
 
-const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+let _client = null;
+function getClient() {
+  if (!_client) _client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+  return _client;
+}
 
 function parseIncoming(req) {
   const { From, To, Body, ProfileName } = req.body;
@@ -16,7 +20,7 @@ function parseIncoming(req) {
 }
 
 async function send(to, from, text) {
-  await client.messages.create({
+  await getClient().messages.create({
     from: `whatsapp:${from}`,
     to:   `whatsapp:${to}`,
     body: text,
