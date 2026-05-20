@@ -46,6 +46,9 @@ if (process.env.NODE_ENV === 'development') {
   });
 }
 
+// Webhook — no tenant middleware, negocio resolved by whatsapp_number
+app.use('/webhook/whatsapp', webhookRoutes);
+
 // All other routes: require valid X-Api-Key (tenant resolution)
 app.use(tenant);
 
@@ -55,8 +58,6 @@ app.use('/api/disponibilidad',      disponibilidadRoutes);
 app.use('/api/servicios',           serviciosRoutes);
 app.use('/api/admin/profesionales', profesionalesAdminRoutes);
 app.use('/api/admin/servicios',     serviciosAdminRoutes);
-
-app.use('/webhook/whatsapp', webhookRoutes);
 
 app.use(errorHandler);
 
