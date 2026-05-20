@@ -17,7 +17,7 @@ async function run({ negocio, from, senderName, message }) {
   const history = await store.load(negocio.id, from);
   history.push({ role: 'user', content: safeMessage });
 
-  const systemPrompt = await buildSystemPrompt(negocio, senderName);
+  const systemPrompt = await buildSystemPrompt(negocio, senderName, from);
   let messages = store.prune(history);
 
   let iterations = 0;

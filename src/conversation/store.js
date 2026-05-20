@@ -11,7 +11,12 @@ async function load(negocio_id, telefono) {
 }
 
 async function save(negocio_id, telefono, messages) {
-  await Conversacion.upsert({ negocio_id, telefono, messages });
+  const existing = await Conversacion.findOne({ where: { negocio_id, telefono } });
+  if (existing) {
+    await existing.update({ messages });
+  } else {
+    await Conversacion.create({ negocio_id, telefono, messages });
+  }
 }
 
 function prune(messages) {

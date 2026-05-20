@@ -5,7 +5,11 @@ const { Servicio, Turno } = require('../models');
 const { notFound, badRequest, conflict } = require('../utils/errors');
 
 async function getAll(negocio_id) {
-  return Servicio.findAll({ where: { negocio_id }, order: [['nombre', 'ASC']] });
+  return Servicio.findAll({
+    where:      { negocio_id },
+    attributes: ['id', 'nombre', 'duracion_minutos', 'precio'],
+    order:      [['nombre', 'ASC']],
+  });
 }
 
 async function create(negocio_id, { nombre, duracion_minutos, precio }) {
