@@ -45,7 +45,9 @@ async function run({ negocio, from, senderName, message }) {
       const toolResults = [];
 
       for (const block of response.content.filter(b => b.type === 'tool_use')) {
+        console.log(`[agent] tool_call negocio=${negocio.id} tool=${block.name} input=${JSON.stringify(block.input)}`);
         const result = await execute(block.name, block.input, negocio.id);
+        console.log(`[agent] tool_result negocio=${negocio.id} tool=${block.name} result=${JSON.stringify(result)}`);
         toolResults.push({
           type:        'tool_result',
           tool_use_id: block.id,
