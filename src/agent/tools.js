@@ -41,6 +41,7 @@ const TOOLS = [
         profesional_id: { type: 'integer' },
         servicio_id:    { type: 'integer' },
         fecha_hora:     { type: 'string', description: 'Formato: YYYY-MM-DDTHH:MM:00' },
+        direccion:      { type: 'string', description: 'Dirección del cliente (requerida para servicios a domicilio)' },
       },
       required: ['cliente_id', 'profesional_id', 'servicio_id', 'fecha_hora'],
     },

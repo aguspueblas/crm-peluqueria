@@ -31,6 +31,7 @@ async function execute(toolName, input, negocio_id) {
           profesional_id: input.profesional_id,
           servicio_id:    input.servicio_id,
           fecha_hora:     input.fecha_hora,
+          direccion:      input.direccion ?? null,
         });
 
       case 'get_turnos_cliente':
