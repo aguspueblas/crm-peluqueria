@@ -41,11 +41,28 @@ Las especificaciones de cada módulo están en `/specs/`.
 
 | Feature | Prioridad |
 |---|---|
-| Cargar créditos en Anthropic y probar agente real en Postman | Alta |
-| Configurar cuenta Twilio + sandbox para pruebas reales de WhatsApp | Alta |
+| Refinar comportamiento del agente (ver sección de pendientes de prompts) | Alta |
+| Agregar endpoint admin para limpiar historial de conversación | Alta |
 | Agregar costo de tokens por negocio (tracking de uso de la IA) | Media |
 | Migrar a Meta WhatsApp Cloud API (~50-80 negocios activos) | Media |
 | Panel web de administración por negocio | Baja |
+
+---
+
+## 3b. Pendientes de refinamiento de prompts
+
+Problemas identificados durante las pruebas reales que hay que mejorar:
+
+| Problema | Detalle |
+|---|---|
+| El agente no saluda al cliente | Arranca directo con la info del perfil, sin un saludo inicial cálido |
+| El agente confirma sin llamar a crear_turno | Haiku a veces ignora la instrucción — evaluar si reforzar el prompt o cambiar a Sonnet |
+| El precio aparece en el saludo aunque no se lo pidió | El agente muestra el precio del servicio aunque el cliente no preguntó |
+
+**Estrategia sugerida para la próxima sesión:**
+1. Ajustar el `system_prompt` de Don Pelo para incluir un saludo inicial explícito
+2. Limpiar el historial entre pruebas (agregar endpoint `/api/admin/conversaciones/reset`)
+3. Probar el flujo completo de reserva y validar que crear_turno se llame correctamente
 
 ---
 
@@ -293,7 +310,53 @@ curl -X PUT https://TU-URL.railway.app/api/admin/negocios/ID \
 
 ---
 
-## 14. Deuda técnica de infraestructura
+## 14. Costos de servicios externos
+
+Estimaciones mensuales para operar el sistema. Los costos escalan con la cantidad de negocios y mensajes activos.
+
+### Infraestructura
+
+| Servicio | Plan | Costo estimado |
+|---|---|---|
+| Railway (servidor) | Hobby | $5 USD/mes fijo + consumo adicional si supera el crédito |
+| Railway (PostgreSQL) | incluido en Hobby | $0 (entra dentro del crédito del plan) |
+
+### IA — Anthropic Claude
+
+El modelo actual es **Claude Haiku** (el más económico). Se cobra por tokens procesados.
+
+| Modelo | Input | Output |
+|---|---|---|
+| Haiku 4.5 | $0.80 / millón tokens | $4.00 / millón tokens |
+
+Estimación por conversación: ~2.000 tokens promedio → **~$0.009 USD por conversación**.
+Con 500 conversaciones/mes por negocio → **~$4.50 USD/mes por negocio activo**.
+
+### WhatsApp — Twilio (etapa actual: sandbox)
+
+| Concepto | Costo |
+|---|---|
+| Sandbox de pruebas | Gratis |
+| Número dedicado (producción) | ~$1 USD/mes |
+| Mensajes salientes (WhatsApp) | ~$0.005 USD por mensaje |
+| Mensajes entrantes | Gratis |
+
+Estimación con 500 mensajes salientes/mes por negocio → **~$3.50 USD/mes por negocio**.
+
+### Resumen por negocio activo
+
+| Concepto | Costo mensual estimado |
+|---|---|
+| Infraestructura Railway | $5 USD (fijo, compartido entre todos los negocios) |
+| IA (Haiku, 500 conversaciones) | ~$4.50 USD por negocio |
+| Twilio (500 mensajes salientes) | ~$3.50 USD por negocio |
+| **Total por negocio** | **~$8 USD/mes** |
+
+> A partir de ~50-80 negocios activos conviene migrar a Meta WhatsApp Cloud API (1.000 conversaciones gratis/mes por número).
+
+---
+
+## 14b. Deuda técnica de infraestructura
 
 Las migraciones hoy se corren manualmente (ver sección 12). Pendiente: agregar un script `scripts/migrate.js` que corra al iniciar el servidor en producción o como paso de build en Railway.
 
