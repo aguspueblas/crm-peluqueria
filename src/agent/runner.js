@@ -26,7 +26,7 @@ async function run({ negocio, from, senderName, message }) {
     iterations++;
 
     const response = await anthropic.messages.create({
-      model:      'claude-haiku-4-5-20251001',
+      model:      'claude-sonnet-4-6',
       max_tokens: 512,
       system:     systemPrompt,
       tools:      TOOLS,
