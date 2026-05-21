@@ -251,60 +251,119 @@ Los services lanzan errores con `statusCode` para que el handler los mapee corre
 
 ## 13. Onboarding de cliente nuevo (se repite por cada negocio)
 
-Una vez el servidor está corriendo, dar de alta un negocio nuevo con este flujo:
+Una vez el servidor está corriendo, seguir este proceso para dar de alta un negocio nuevo.
 
-**Paso 1 — Crear el negocio:**
+### Qué necesitás relevar antes de empezar
+
+Antes de tocar código o hacer curls, reunir esta información con el cliente:
+
+| Dato | Ejemplo |
+|---|---|
+| Nombre del negocio | Expreso Polar |
+| Rubro | refrigeracion |
+| Nombre del/los profesional/es | Jonathan Javier |
+| Horarios por día (inicio y fin) | Lunes a viernes 16-22hs, sábados 9-15hs |
+| Servicios (nombre y duración en minutos) | Instalación 60 min, Mantenimiento 45 min |
+| ¿Requiere dirección del cliente? | Sí (servicios a domicilio) |
+| ¿Requiere comprobante de pago? | Sí (Mercado Pago / transferencia) |
+| Zona de cobertura | Zona norte GBA y CABA |
+| Número de WhatsApp del negocio | (para producción — en sandbox usar +14155238886) |
+
+Con esto armás el `system_prompt` antes de ejecutar cualquier curl.
+
+---
+
+### Paso 1 — Armar el system_prompt
+
+El `system_prompt` define la personalidad y las reglas del agente para ese negocio. Debe incluir:
+- Nombre del negocio y descripción breve
+- Tono de conversación (rioplatense, cordial, mensajes cortos)
+- Zona de cobertura (si aplica)
+- Restricciones de servicios ("solo los del listado, nunca inventar")
+- Flujo de confirmación (qué datos necesita antes de agendar)
+- Si requiere dirección: pedirla antes de mostrar horarios
+- Si requiere comprobante: instrucciones de pago y estado "pendiente"
+
+Ver ejemplos reales en los negocios ya cargados (Don Pelo y Expreso Polar).
+
+---
+
+### Paso 2 — Crear el negocio
+
 ```bash
-curl -X POST https://TU-URL.railway.app/api/admin/negocios \
+curl -X POST https://crm-peluqueria-production.up.railway.app/api/admin/negocios \
   -H "X-Admin-Secret: TU_ADMIN_SECRET" \
   -H "Content-Type: application/json" \
   -d '{
     "nombre": "Nombre del Negocio",
-    "rubro": "peluqueria",
-    "whatsapp_number": "+5491112345678",
-    "system_prompt": "Reglas del negocio..."
+    "rubro": "rubro",
+    "system_prompt": "..."
   }'
 ```
-Guardar el `api_key` que devuelve — es el identificador del negocio para las rutas REST.
 
-**Paso 2 — Cargar un profesional:**
-```bash
-curl -X POST https://TU-URL.railway.app/api/profesionales \
-  -H "X-Api-Key: API_KEY_DEL_NEGOCIO" \
-  -H "Content-Type: application/json" \
-  -d '{ "nombre": "Nombre Profesional" }'
-```
+Guardar el `api_key` que devuelve — se usa en todos los pasos siguientes.
 
-**Paso 3 — Cargar horarios del profesional** (un registro por bloque horario):
-```bash
-curl -X POST https://TU-URL.railway.app/api/profesionales/ID/horarios \
-  -H "X-Api-Key: API_KEY_DEL_NEGOCIO" \
-  -H "Content-Type: application/json" \
-  -d '{ "dia_semana": 1, "hora_inicio": "09:00", "hora_fin": "18:00" }'
-```
+---
+
+### Paso 3 — Crear el/los profesional/es con sus horarios
+
+Los horarios se pasan en el mismo request de creación. Un objeto por bloque horario.
 `dia_semana`: 0=domingo, 1=lunes ... 6=sábado.
 
-**Paso 4 — Cargar servicios:**
 ```bash
-curl -X POST https://TU-URL.railway.app/api/servicios \
+curl -X POST https://crm-peluqueria-production.up.railway.app/api/admin/profesionales \
   -H "X-Api-Key: API_KEY_DEL_NEGOCIO" \
   -H "Content-Type: application/json" \
-  -d '{ "nombre": "Corte de pelo", "duracion_minutos": 30, "precio": 5000 }'
+  -d '{
+    "nombre": "Nombre Profesional",
+    "horarios": [
+      { "dia_semana": 1, "hora_inicio": "09:00", "hora_fin": "18:00" },
+      { "dia_semana": 2, "hora_inicio": "09:00", "hora_fin": "18:00" }
+    ]
+  }'
 ```
 
-**Paso 5 — Configurar el system_prompt** (reglas del negocio para el agente):
+---
+
+### Paso 4 — Cargar los servicios
+
 ```bash
-curl -X PUT https://TU-URL.railway.app/api/admin/negocios/ID \
+curl -X POST https://crm-peluqueria-production.up.railway.app/api/admin/servicios \
+  -H "X-Api-Key: API_KEY_DEL_NEGOCIO" \
+  -H "Content-Type: application/json" \
+  -d '{ "nombre": "Nombre del servicio", "duracion_minutos": 60, "precio": 15000 }'
+```
+
+El campo `precio` es opcional — si los precios varían o no se quieren mostrar, omitirlo.
+
+---
+
+### Paso 5 — Asignar el número de WhatsApp
+
+**Sandbox (pruebas):** el sandbox de Twilio es un número compartido. Solo un negocio puede tenerlo asignado a la vez. Para cambiar de negocio activo:
+
+```bash
+# Quitar el número del negocio anterior
+curl -X PUT https://crm-peluqueria-production.up.railway.app/api/admin/negocios/ID_ANTERIOR \
   -H "X-Admin-Secret: TU_ADMIN_SECRET" \
   -H "Content-Type: application/json" \
-  -d '{ "system_prompt": "Sos el asistente virtual de X. El servicio base es Y (id: Z). Si el cliente no especifica servicio, usá siempre el id Z." }'
+  -d '{ "whatsapp_number": null }'
+
+# Asignarlo al nuevo
+curl -X PUT https://crm-peluqueria-production.up.railway.app/api/admin/negocios/ID_NUEVO \
+  -H "X-Admin-Secret: TU_ADMIN_SECRET" \
+  -H "Content-Type: application/json" \
+  -d '{ "whatsapp_number": "+14155238886" }'
 ```
 
-**Paso 6 — Configurar Twilio:**
-- En Twilio Console → Messaging → Sandbox → configurar el webhook a:
-  `https://TU-URL.railway.app/webhook/whatsapp`
-- El número de sandbox es `whatsapp:+14155238886`
-- Para producción: solicitar número dedicado en Twilio (requiere aprobación de Meta)
+**Producción:** cada negocio tiene su propio número de Twilio. Asignarlo en el campo `whatsapp_number` y configurar el webhook en Twilio Console → el mismo URL para todos:
+`https://crm-peluqueria-production.up.railway.app/webhook/whatsapp`
+
+---
+
+### Paso 6 — Verificar
+
+Mandar un mensaje de WhatsApp al sandbox y confirmar que el agente responde con la personalidad correcta del negocio.
 
 ---
 
