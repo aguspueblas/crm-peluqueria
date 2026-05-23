@@ -10,6 +10,7 @@ const Negocio = sequelize.define('Negocio', {
   api_key:          { type: DataTypes.STRING(64), allowNull: false, unique: true },
   whatsapp_number:  { type: DataTypes.STRING(20), unique: true },
   activo:           { type: DataTypes.BOOLEAN, defaultValue: true },
+  agente_nombre:    { type: DataTypes.STRING(100) },
   system_prompt:    { type: DataTypes.TEXT },
 }, {
   tableName: 'negocios',

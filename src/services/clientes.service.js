@@ -44,4 +44,11 @@ async function identificar(negocio_id, { telefono, nombre }) {
   return { ...nuevo.toJSON(), es_nuevo: true };
 }
 
-module.exports = { getAll, getById, create, update, identificar };
+async function updateNombre(negocio_id, id, nombre) {
+  const cliente = await Cliente.findOne({ where: { id, negocio_id } });
+  if (!cliente) throw notFound('Client not found');
+  await cliente.update({ nombre });
+  return cliente;
+}
+
+module.exports = { getAll, getById, create, update, identificar, updateNombre };
