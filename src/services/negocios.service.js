@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const { Negocio } = require('../models');
 const { notFound, badRequest } = require('../utils/errors');
 
-const PUBLIC_ATTRIBUTES = ['id', 'nombre', 'rubro', 'whatsapp_number', 'activo', 'system_prompt', 'created_at'];
+const PUBLIC_ATTRIBUTES = ['id', 'nombre', 'rubro', 'whatsapp_number', 'activo', 'agente_nombre', 'system_prompt', 'created_at'];
 
 async function getAll() {
   return Negocio.findAll({ attributes: PUBLIC_ATTRIBUTES, order: [['nombre', 'ASC']] });
@@ -16,7 +16,7 @@ async function getById(id) {
   return negocio;
 }
 
-async function create({ nombre, rubro, whatsapp_number, system_prompt }) {
+async function create({ nombre, rubro, whatsapp_number, agente_nombre, system_prompt }) {
   if (!nombre || !rubro) throw badRequest('nombre and rubro are required');
   const api_key = 'sk_' + crypto.randomBytes(24).toString('hex');
   const negocio = await Negocio.create({
@@ -24,15 +24,16 @@ async function create({ nombre, rubro, whatsapp_number, system_prompt }) {
     rubro,
     whatsapp_number: whatsapp_number ?? null,
     api_key,
+    agente_nombre:   agente_nombre ?? null,
     system_prompt:   system_prompt ?? null,
   });
   return negocio;
 }
 
-async function update(id, { nombre, rubro, whatsapp_number, activo, system_prompt }) {
+async function update(id, { nombre, rubro, whatsapp_number, activo, agente_nombre, system_prompt }) {
   const negocio = await Negocio.findByPk(id);
   if (!negocio) throw notFound('Negocio not found');
-  await negocio.update({ nombre, rubro, whatsapp_number, activo, system_prompt });
+  await negocio.update({ nombre, rubro, whatsapp_number, activo, agente_nombre, system_prompt });
   return negocio.reload({ attributes: PUBLIC_ATTRIBUTES });
 }
 
