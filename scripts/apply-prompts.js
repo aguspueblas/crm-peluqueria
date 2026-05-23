@@ -103,11 +103,11 @@ async function main() {
   for (const { nombre, agente_nombre, system_prompt } of PROMPTS) {
     const negocio = await Negocio.findOne({ where: { nombre } });
     if (!negocio) {
-      console.log(`⚠️  No encontré negocio "${nombre}" — saltando.`);
+      console.log(`[WARN] Negocio "${nombre}" no encontrado — saltando.`);
       continue;
     }
     await negocio.update({ agente_nombre, system_prompt });
-    console.log(`✓ ${nombre} — agente_nombre="${agente_nombre}", system_prompt actualizado.`);
+    console.log(`[OK] ${nombre} — agente_nombre="${agente_nombre}", system_prompt actualizado.`);
   }
 
   await sequelize.close();
