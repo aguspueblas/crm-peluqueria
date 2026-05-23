@@ -5,6 +5,7 @@ const disponibilidadService = require('../services/disponibilidad.service');
 const clientesService       = require('../services/clientes.service');
 const turnosService         = require('../services/turnos.service');
 const profesionalesService  = require('../services/profesionales.service');
+const { validarNombreCliente } = require('../services/utils/nombre');
 
 async function execute(toolName, input, negocio_id) {
   try {
@@ -19,11 +20,11 @@ async function execute(toolName, input, negocio_id) {
           profesional_id: input.profesional_id,
         });
 
-      case 'identificar_cliente':
-        return await clientesService.identificar(negocio_id, {
-          telefono: input.telefono,
-          nombre:   input.nombre,
-        });
+      case 'actualizar_cliente': {
+        const nombreValido = validarNombreCliente(input.nombre);
+        await clientesService.updateNombre(negocio_id, input.cliente_id, nombreValido);
+        return { ok: true, nombre: nombreValido };
+      }
 
       case 'crear_turno':
         return await turnosService.create(negocio_id, {

@@ -20,15 +20,15 @@ const TOOLS = [
     },
   },
   {
-    name: 'identificar_cliente',
-    description: 'Encuentra o crea el cliente por su número de teléfono. Llamar al inicio de toda conversación.',
+    name: 'actualizar_cliente',
+    description: 'Actualiza el nombre de un cliente. Llamar cuando el cliente proporciona su nombre por primera vez antes de confirmar un turno.',
     input_schema: {
       type: 'object',
       properties: {
-        telefono: { type: 'string' },
-        nombre:   { type: 'string' },
+        cliente_id: { type: 'integer', description: 'ID del cliente' },
+        nombre:     { type: 'string',  description: 'Nombre o apodo del cliente' },
       },
-      required: ['telefono', 'nombre'],
+      required: ['cliente_id', 'nombre'],
     },
   },
   {
