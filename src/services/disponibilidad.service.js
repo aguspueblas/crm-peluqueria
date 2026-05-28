@@ -46,12 +46,12 @@ async function getSlots(negocio_id, { fecha, servicio_id, profesional_id }) {
     ? await sequelize.query(
         `SELECT
            t.profesional_id,
-           TO_CHAR(t.fecha_hora AT TIME ZONE 'America/Buenos_Aires', 'HH24:MI') AS hora_local,
+           TO_CHAR(t.fecha_hora - INTERVAL '3 hours', 'HH24:MI') AS hora_local,
            s.duracion_minutos AS duracion_minutos
          FROM turnos t
          JOIN servicios s ON s.id = t.servicio_id
          WHERE t.profesional_id IN (:ids)
-           AND DATE(t.fecha_hora AT TIME ZONE 'America/Buenos_Aires') = :fecha
+           AND DATE(t.fecha_hora - INTERVAL '3 hours') = :fecha
            AND t.estado IN ('pendiente', 'confirmado')`,
         {
           replacements: { ids: profesionales.map(p => p.id), fecha },
