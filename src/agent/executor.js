@@ -49,6 +49,9 @@ async function execute(toolName, input, negocio_id) {
       case 'get_profesionales':
         return await profesionalesService.getAll(negocio_id);
 
+      case 'notificar_admin':
+        return { ok: true, motivo: input.motivo };
+
       case 'derivar_a_admin':
         return { ok: true, derivado: true, motivo: input.motivo };
 

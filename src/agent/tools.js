@@ -48,12 +48,23 @@ const TOOLS = [
     },
   },
   {
-    name: 'derivar_a_admin',
-    description: 'Deriva la conversación al administrador humano cuando el cliente tiene un problema que el agente no puede resolver. Usar cuando el cliente está muy disconforme, pide hablar con una persona, o la situación escapa al flujo normal.',
+    name: 'notificar_admin',
+    description: 'Notifica al administrador sobre una situación que requiere su atención, sin interrumpir la conversación con el cliente. Usar cuando: el cliente no puede pagar digitalmente, se recibe un comprobante de pago, hay una queja, el servicio no tiene precio, no se puede identificar el servicio, el cliente tiene una consulta fuera del alcance del agente, o cualquier situación que Jonatan deba saber. El bot sigue respondiendo normalmente después de llamar esta función.',
     input_schema: {
       type: 'object',
       properties: {
-        motivo: { type: 'string', description: 'Descripción breve del motivo de derivación' },
+        motivo: { type: 'string', description: 'Descripción breve de lo que ocurrió' },
+      },
+      required: ['motivo'],
+    },
+  },
+  {
+    name: 'derivar_a_admin',
+    description: 'Transfiere la conversación al administrador humano y detiene las respuestas del bot. Usar ÚNICAMENTE cuando el cliente pide explícitamente hablar con una persona real.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        motivo: { type: 'string', description: 'Descripción breve del motivo' },
       },
       required: ['motivo'],
     },

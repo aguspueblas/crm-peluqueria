@@ -50,6 +50,9 @@ async function run({ negocio, from, senderName, message }) {
         console.log(`[agent] tool_call negocio=${negocio.id} tool=${block.name} input=${JSON.stringify(block.input)}`);
         const result = await execute(block.name, block.input, negocio.id);
         console.log(`[agent] tool_result negocio=${negocio.id} tool=${block.name} result=${JSON.stringify(result)}`);
+        if (block.name === 'notificar_admin') {
+          await notificarDerivacion(negocio, from, block.input.motivo ?? '');
+        }
         if (block.name === 'derivar_a_admin') {
           await store.marcarDerivada(negocio.id, from);
           await notificarDerivacion(negocio, from, block.input.motivo ?? '');
