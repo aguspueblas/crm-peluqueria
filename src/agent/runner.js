@@ -1,10 +1,11 @@
 'use strict';
 
 const Anthropic = require('@anthropic-ai/sdk');
-const { TOOLS }            = require('./tools');
-const { execute }          = require('./executor');
-const { buildSystemPrompt } = require('./prompt');
-const store                = require('../conversation/store');
+const { TOOLS }              = require('./tools');
+const { execute }            = require('./executor');
+const { buildSystemPrompt }  = require('./prompt');
+const store                  = require('../conversation/store');
+const { notificarDerivacion } = require('../services/notificaciones.service');
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -44,15 +45,36 @@ async function run({ negocio, from, senderName, message }) {
       messages.push({ role: 'assistant', content: response.content });
       const toolResults = [];
 
+      let derivada = false;
       for (const block of response.content.filter(b => b.type === 'tool_use')) {
         console.log(`[agent] tool_call negocio=${negocio.id} tool=${block.name} input=${JSON.stringify(block.input)}`);
         const result = await execute(block.name, block.input, negocio.id);
         console.log(`[agent] tool_result negocio=${negocio.id} tool=${block.name} result=${JSON.stringify(result)}`);
+        if (block.name === 'derivar_a_admin') {
+          await store.marcarDerivada(negocio.id, from);
+          await notificarDerivacion(negocio, from, block.input.motivo ?? '');
+          derivada = true;
+        }
         toolResults.push({
           type:        'tool_result',
           tool_use_id: block.id,
           content:     JSON.stringify(result),
         });
+      }
+      if (derivada) {
+        messages.push({ role: 'user', content: toolResults });
+        // Una última vuelta para que el agente despida al cliente
+        const finalResponse = await anthropic.messages.create({
+          model:      'claude-haiku-4-5-20251001',
+          max_tokens: 512,
+          system:     systemPrompt,
+          tools:      TOOLS,
+          messages,
+        });
+        const text = finalResponse.content.find(b => b.type === 'text')?.text ?? '';
+        history.push({ role: 'assistant', content: text });
+        await store.save(negocio.id, from, history);
+        return text;
       }
 
       messages.push({ role: 'user', content: toolResults });

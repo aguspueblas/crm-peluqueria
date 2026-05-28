@@ -33,6 +33,7 @@ async function execute(toolName, input, negocio_id) {
           servicio_id:    input.servicio_id,
           fecha_hora:     input.fecha_hora,
           direccion:      input.direccion ?? null,
+          observaciones:  input.observaciones ?? null,
         });
 
       case 'get_turnos_cliente':
@@ -47,6 +48,9 @@ async function execute(toolName, input, negocio_id) {
 
       case 'get_profesionales':
         return await profesionalesService.getAll(negocio_id);
+
+      case 'derivar_a_admin':
+        return { ok: true, derivado: true, motivo: input.motivo };
 
       default:
         return { error: true, message: `Unknown tool: ${toolName}` };

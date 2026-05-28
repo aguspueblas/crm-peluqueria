@@ -8,6 +8,7 @@ const Conversacion = sequelize.define('Conversacion', {
   negocio_id: { type: DataTypes.INTEGER, allowNull: false },
   telefono:   { type: DataTypes.STRING(20), allowNull: false },
   messages:   { type: DataTypes.JSONB, allowNull: false, defaultValue: [] },
+  estado:     { type: DataTypes.STRING(20), allowNull: false, defaultValue: 'activa' },
 }, {
   tableName: 'conversaciones',
   createdAt: false,

@@ -12,6 +12,7 @@ const Turno = sequelize.define('Turno', {
   fecha_hora:     { type: DataTypes.DATE, allowNull: false },
   estado:         { type: DataTypes.ENUM('pendiente', 'confirmado', 'cancelado'), defaultValue: 'pendiente' },
   direccion:      { type: DataTypes.TEXT },
+  observaciones:  { type: DataTypes.TEXT },
   created_at:     { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
 }, {
   tableName: 'turnos',

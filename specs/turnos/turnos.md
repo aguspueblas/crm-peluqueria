@@ -45,7 +45,9 @@ Core del sistema. Permite crear, modificar y cancelar turnos con validaciones de
   "cliente_id": 1,
   "profesional_id": 2,
   "servicio_id": 1,
-  "fecha_hora": "2025-06-10T10:00:00"
+  "fecha_hora": "2025-06-10T10:00:00",
+  "direccion": "Av. Corrientes 1234",
+  "observaciones": "Equipo de 3000 frigorías. Unidad exterior al vacío."
 }
 
 // Response 201
@@ -56,9 +58,13 @@ Core del sistema. Permite crear, modificar y cancelar turnos con validaciones de
   "servicio_id": 1,
   "fecha_hora": "2025-06-10T10:00:00",
   "estado": "pendiente",
+  "direccion": "Av. Corrientes 1234",
+  "observaciones": "Equipo de 3000 frigorías. Unidad exterior al vacío.",
   "created_at": "2025-06-01T12:00:00.000Z"
 }
 ```
+
+> `direccion` y `observaciones` son opcionales. `observaciones` lo usa el agente de IA para registrar contexto relevante del trabajo (frigorías, tipo de acceso, síntomas, etc.) que el técnico necesita ver antes de la visita.
 
 ---
 

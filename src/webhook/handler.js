@@ -2,6 +2,7 @@
 
 const { Negocio } = require('../models');
 const runner      = require('../agent/runner');
+const store       = require('../conversation/store');
 
 // Rate limiting: máx 5 mensajes por minuto por número de teléfono
 const rateLimitStore = new Map();
@@ -35,6 +36,9 @@ async function handleIncoming(normalizedMessage, provider) {
 
   const negocio = await Negocio.findOne({ where: { whatsapp_number: to, activo: true } });
   if (!negocio) return;
+
+  const estado = await store.getEstado(negocio.id, from);
+  if (estado === 'derivada') return;
 
   const reply = await runner.run({ negocio, from, senderName, message: body });
 

@@ -12,6 +12,7 @@ const Negocio = sequelize.define('Negocio', {
   activo:           { type: DataTypes.BOOLEAN, defaultValue: true },
   agente_nombre:    { type: DataTypes.STRING(100) },
   system_prompt:    { type: DataTypes.TEXT },
+  admin_phone:      { type: DataTypes.STRING(20) },
 }, {
   tableName: 'negocios',
   createdAt: 'created_at',

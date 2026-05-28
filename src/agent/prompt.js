@@ -60,8 +60,11 @@ async function buildSystemPrompt(negocio, senderName, fromPhone) {
   const businessRules    = resolvePlaceholders(templateRaw, vars);
   const usesPlaceholders = Object.keys(vars).some(p => templateRaw.includes(p));
 
-  // Para negocios con system_prompt legacy (sin placeholders), inyectamos los datos dinámicos
-  const datosSection = usesPlaceholders ? '' : `
+  // Prompts modernos (con placeholders): el template del negocio es la única fuente de verdad.
+  if (usesPlaceholders) return businessRules;
+
+  // Prompts legacy (sin placeholders): inyectamos datos dinámicos + instrucciones base.
+  const datosSection = `
 
 DATOS DINÁMICOS:
 - Negocio: ${negocio.nombre} (${negocio.rubro})
@@ -74,7 +77,7 @@ ${serviciosList}`;
 ${businessRules}${datosSection}
 
 FLUJO PARA AGENDAR UN TURNO:
-1. Si {cliente_nombre} es null o no parece un nombre real, pedíselo UNA SOLA VEZ. Cuando el cliente lo dé, llamá a actualizar_cliente con el cliente_id y el nombre recibido.
+1. Si el cliente no dio su nombre, pedíselo UNA SOLA VEZ. Cuando lo dé, llamá a actualizar_cliente.
 2. Consultá disponibilidad con get_disponibilidad usando el servicio_id que corresponda.
 3. Presentá las opciones y esperá que el cliente confirme fecha, hora y (si aplica) profesional.
 4. Resumí el turno y preguntá "¿Confirmás?" explícitamente. Esperá respuesta.
