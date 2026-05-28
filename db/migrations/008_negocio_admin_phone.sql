@@ -1,0 +1,1 @@
+ALTER TABLE negocios ADD COLUMN IF NOT EXISTS admin_phone VARCHAR(20);

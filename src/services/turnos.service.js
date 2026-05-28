@@ -38,7 +38,7 @@ async function getById(negocio_id, id) {
   return turno;
 }
 
-async function create(negocio_id, { cliente_id, profesional_id, servicio_id, fecha_hora, direccion }) {
+async function create(negocio_id, { cliente_id, profesional_id, servicio_id, fecha_hora, direccion, observaciones }) {
   if (!cliente_id || !profesional_id || !servicio_id || !fecha_hora)
     throw badRequest('cliente_id, profesional_id, servicio_id and fecha_hora are required');
 
@@ -59,7 +59,7 @@ async function create(negocio_id, { cliente_id, profesional_id, servicio_id, fec
   await checkDentroDeHorario(profesional_id, fecha_hora, servicio.duracion_minutos);
   await checkSolapamientos(negocio_id, profesional_id, cliente_id, fecha_hora, servicio.duracion_minutos, null);
 
-  const turno = await Turno.create({ negocio_id, cliente_id, profesional_id, servicio_id, fecha_hora, direccion: direccion ?? null, estado: 'pendiente' });
+  const turno = await Turno.create({ negocio_id, cliente_id, profesional_id, servicio_id, fecha_hora, direccion: direccion ?? null, observaciones: observaciones ?? null, estado: 'pendiente' });
   return getById(negocio_id, turno.id);
 }
 

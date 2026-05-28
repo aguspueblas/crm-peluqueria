@@ -42,8 +42,20 @@ const TOOLS = [
         servicio_id:    { type: 'integer' },
         fecha_hora:     { type: 'string', description: 'Formato: YYYY-MM-DDTHH:MM:00' },
         direccion:      { type: 'string', description: 'Dirección del cliente (requerida para servicios a domicilio)' },
+        observaciones:  { type: 'string', description: 'Notas adicionales del turno (equipo, problema reportado, etc.)' },
       },
       required: ['cliente_id', 'profesional_id', 'servicio_id', 'fecha_hora'],
+    },
+  },
+  {
+    name: 'derivar_a_admin',
+    description: 'Deriva la conversación al administrador humano cuando el cliente tiene un problema que el agente no puede resolver. Usar cuando el cliente está muy disconforme, pide hablar con una persona, o la situación escapa al flujo normal.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        motivo: { type: 'string', description: 'Descripción breve del motivo de derivación' },
+      },
+      required: ['motivo'],
     },
   },
   {
