@@ -194,13 +194,28 @@ async function handleIncoming(normalizedMessage) {
   const negocio = await Negocio.findOne({ where: { whatsapp_number: to, activo: true } });
   if (!negocio) return;   // número no registrado, ignorar
 
-  // 3. Delegar al agente de IA
+  // 3. Verificar estado de la conversación
+  const estado = await store.getEstado(negocio.id, from);
+  if (estado === 'derivada') return;   // el admin humano tomó el control, ignorar
+
+  // 4. Delegar al agente de IA
   const reply = await agentRunner.run({ negocio, from, senderName, message: body });
 
-  // 4. Enviar respuesta por el mismo provider
+  // 5. Enviar respuesta por el mismo provider
   await provider.send(from, to, reply);
 }
 ```
+
+### Estado de conversación
+
+Las conversaciones tienen un campo `estado` que controla si el agente sigue respondiendo:
+
+| Estado | Descripción |
+|---|---|
+| `activa` | El agente responde normalmente (default) |
+| `derivada` | El agente dejó de responder. Un humano debe atender al cliente |
+
+Cuando el agente llama a la tool `derivar_a_admin`, el runner marca la conversación como `derivada` y envía una notificación WhatsApp al `admin_phone` del negocio (si está configurado). A partir de ese momento el handler ignora todos los mensajes entrantes de ese número.
 
 ---
 
@@ -239,4 +254,4 @@ WHATSAPP_PROVIDER=twilio   # o "meta"
 - Mensajes de media (imagen, audio, documentos) — solo texto
 - Read receipts / typing indicators
 - Templates de WhatsApp para mensajes proactivos (recordatorios)
-- Rate limiting por número de teléfono
+- Rate limiting persistente (hoy en memoria, se pierde al reiniciar)

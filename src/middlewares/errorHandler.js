@@ -1,6 +1,6 @@
 'use strict';
 
-const INTERNAL_ERROR = 'Error interno del servidor';
+const INTERNAL_ERROR = 'Internal server error';
 
 function errorHandler(err, req, res, next) {
   const status = err.status || 500;

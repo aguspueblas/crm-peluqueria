@@ -1,0 +1,1 @@
+ALTER TABLE conversaciones ADD COLUMN IF NOT EXISTS estado VARCHAR(20) NOT NULL DEFAULT 'activa';

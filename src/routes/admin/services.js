@@ -1,8 +1,16 @@
 'use strict';
 
 const express = require('express');
-const router = express.Router();
-const service = require('../../services/servicios.service');
+const router  = express.Router();
+const service = require('../../services/catalog.service');
+
+router.get('/', async (req, res, next) => {
+  try {
+    res.json(await service.getAll(req.negocio.id));
+  } catch (err) {
+    next(err);
+  }
+});
 
 router.post('/', async (req, res, next) => {
   try {
@@ -23,7 +31,7 @@ router.put('/:id', async (req, res, next) => {
 router.delete('/:id', async (req, res, next) => {
   try {
     await service.remove(req.negocio.id, req.params.id);
-    res.status(204).end();
+    res.status(204).send();
   } catch (err) {
     next(err);
   }

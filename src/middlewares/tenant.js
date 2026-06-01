@@ -1,16 +1,16 @@
 'use strict';
 
-const { Negocio } = require('../models');
+const { Business } = require('../models');
 
 async function tenant(req, res, next) {
   const apiKey = req.headers['x-api-key'];
-  if (!apiKey) return res.status(401).json({ error: 'Se requiere el header X-Api-Key' });
+  if (!apiKey) return res.status(401).json({ error: 'X-Api-Key header is required' });
 
   try {
-    const negocio = await Negocio.findOne({ where: { api_key: apiKey, activo: true } });
-    if (!negocio) return res.status(401).json({ error: 'API key inválida o negocio inactivo' });
+    const business = await Business.findOne({ where: { apiKey, active: true } });
+    if (!business) return res.status(401).json({ error: 'Invalid API key or inactive business' });
 
-    req.negocio = negocio;
+    req.negocio = business;
     next();
   } catch (err) {
     next(err);

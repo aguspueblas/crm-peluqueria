@@ -1,22 +1,12 @@
 'use strict';
 
 const express = require('express');
-const router = express.Router();
-const service = require('../services/clientes.service');
-
-// /identificar debe ir antes de /:id para que Express no lo interprete como un ID
-router.post('/identificar', async (req, res, next) => {
-  try {
-    const resultado = await service.identificar(req.negocio.id, req.body);
-    res.status(resultado.es_nuevo ? 201 : 200).json(resultado);
-  } catch (err) {
-    next(err);
-  }
-});
+const router  = express.Router();
+const service = require('../services/appointment.service');
 
 router.get('/', async (req, res, next) => {
   try {
-    res.json(await service.getAll(req.negocio.id));
+    res.json(await service.getAll(req.negocio.id, req.query));
   } catch (err) {
     next(err);
   }
@@ -41,6 +31,15 @@ router.post('/', async (req, res, next) => {
 router.put('/:id', async (req, res, next) => {
   try {
     res.json(await service.update(req.negocio.id, req.params.id, req.body));
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.delete('/:id', async (req, res, next) => {
+  try {
+    await service.cancel(req.negocio.id, req.params.id);
+    res.status(204).send();
   } catch (err) {
     next(err);
   }

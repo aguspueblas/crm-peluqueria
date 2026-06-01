@@ -1,21 +1,36 @@
 'use strict';
 
 const { Op } = require('sequelize');
-const { Conversacion } = require('../models');
+const { Conversation } = require('../models');
 
 const MAX_HISTORY = 10;
+const INACTIVE_THRESHOLD_MS = 2 * 60 * 60 * 1000; // 2 hours
 
-async function load(negocio_id, telefono) {
-  const conv = await Conversacion.findOne({ where: { negocio_id, telefono } });
+async function load(businessId, phone) {
+  const conv = await Conversation.findOne({ where: { businessId, phone } });
   return conv?.messages ?? [];
 }
 
-async function save(negocio_id, telefono, messages) {
-  const existing = await Conversacion.findOne({ where: { negocio_id, telefono } });
+async function save(businessId, phone, messages) {
+  const existing = await Conversation.findOne({ where: { businessId, phone } });
   if (existing) {
     await existing.update({ messages });
   } else {
-    await Conversacion.create({ negocio_id, telefono, messages });
+    await Conversation.create({ businessId, phone, messages });
+  }
+}
+
+async function getStatus(businessId, phone) {
+  const conv = await Conversation.findOne({ where: { businessId, phone } });
+  return conv?.status ?? 'active';
+}
+
+async function markDelegated(businessId, phone) {
+  const existing = await Conversation.findOne({ where: { businessId, phone } });
+  if (existing) {
+    await existing.update({ status: 'derivada' });
+  } else {
+    await Conversation.create({ businessId, phone, messages: [], status: 'derivada' });
   }
 }
 
@@ -24,10 +39,13 @@ function prune(messages) {
 }
 
 async function cleanup() {
-  const cutoff = new Date(Date.now() - 2 * 60 * 60 * 1000);
-  await Conversacion.destroy({ where: { updated_at: { [Op.lt]: cutoff } } });
+  const cutoff = new Date(Date.now() - INACTIVE_THRESHOLD_MS);
+  const deleted = await Conversation.destroy({ where: { updated_at: { [Op.lt]: cutoff } } });
+  if (deleted > 0) console.log(`[store] cleaned up ${deleted} inactive conversation(s)`);
 }
 
-setInterval(cleanup, 30 * 60 * 1000);
+function startCleanupScheduler() {
+  setInterval(cleanup, 30 * 60 * 1000);
+}
 
-module.exports = { load, save, prune };
+module.exports = { load, save, prune, getStatus, markDelegated, startCleanupScheduler };

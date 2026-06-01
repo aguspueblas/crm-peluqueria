@@ -1,8 +1,8 @@
 'use strict';
 
 const express = require('express');
-const router = express.Router();
-const service = require('../services/disponibilidad.service');
+const router  = express.Router();
+const service = require('../services/availability.service');
 
 router.get('/', async (req, res, next) => {
   try {
