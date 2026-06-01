@@ -1,35 +1,35 @@
 'use strict';
 
-const Negocio = require('./Negocio');
-const Profesional = require('./Profesional');
-const ProfesionalHorario = require('./ProfesionalHorario');
-const Cliente = require('./Cliente');
-const Servicio = require('./Servicio');
-const Turno = require('./Turno');
-const Conversacion = require('./Conversacion');
+const Business           = require('./Business');
+const Professional       = require('./Professional');
+const ProfessionalSchedule = require('./ProfessionalSchedule');
+const Client             = require('./Client');
+const Service            = require('./Service');
+const Appointment        = require('./Appointment');
+const Conversation       = require('./Conversation');
 
-// Negocio → todo lo demás
-Negocio.hasMany(Profesional,  { foreignKey: 'negocio_id' });
-Negocio.hasMany(Cliente,      { foreignKey: 'negocio_id' });
-Negocio.hasMany(Servicio,     { foreignKey: 'negocio_id' });
-Negocio.hasMany(Turno,        { foreignKey: 'negocio_id' });
-Profesional.belongsTo(Negocio, { foreignKey: 'negocio_id' });
-Cliente.belongsTo(Negocio,     { foreignKey: 'negocio_id' });
-Servicio.belongsTo(Negocio,    { foreignKey: 'negocio_id' });
-Turno.belongsTo(Negocio,       { foreignKey: 'negocio_id' });
+// Business → dependents
+Business.hasMany(Professional,  { foreignKey: 'businessId' });
+Business.hasMany(Client,        { foreignKey: 'businessId' });
+Business.hasMany(Service,       { foreignKey: 'businessId' });
+Business.hasMany(Appointment,   { foreignKey: 'businessId' });
+Business.hasMany(Conversation,  { foreignKey: 'businessId' });
 
-// Profesional ↔ Horarios
-Profesional.hasMany(ProfesionalHorario, { as: 'horarios', foreignKey: 'profesional_id' });
-ProfesionalHorario.belongsTo(Profesional, { foreignKey: 'profesional_id' });
+Professional.belongsTo(Business, { foreignKey: 'businessId' });
+Client.belongsTo(Business,       { foreignKey: 'businessId' });
+Service.belongsTo(Business,      { foreignKey: 'businessId' });
+Appointment.belongsTo(Business,  { foreignKey: 'businessId' });
+Conversation.belongsTo(Business, { foreignKey: 'businessId' });
 
-// Turno → entidades relacionadas
-Turno.belongsTo(Cliente,     { foreignKey: 'cliente_id' });
-Turno.belongsTo(Profesional, { foreignKey: 'profesional_id' });
-Turno.belongsTo(Servicio,    { foreignKey: 'servicio_id' });
-Cliente.hasMany(Turno,       { foreignKey: 'cliente_id' });
-Profesional.hasMany(Turno,   { foreignKey: 'profesional_id' });
+// Professional ↔ Schedules
+Professional.hasMany(ProfessionalSchedule, { as: 'schedules', foreignKey: 'professionalId' });
+ProfessionalSchedule.belongsTo(Professional, { foreignKey: 'professionalId' });
 
-Negocio.hasMany(Conversacion, { foreignKey: 'negocio_id' });
-Conversacion.belongsTo(Negocio, { foreignKey: 'negocio_id' });
+// Appointment → related entities
+Appointment.belongsTo(Client,       { foreignKey: 'clientId' });
+Appointment.belongsTo(Professional, { foreignKey: 'professionalId' });
+Appointment.belongsTo(Service,      { foreignKey: 'serviceId' });
+Client.hasMany(Appointment,         { foreignKey: 'clientId' });
+Professional.hasMany(Appointment,   { foreignKey: 'professionalId' });
 
-module.exports = { Negocio, Profesional, ProfesionalHorario, Cliente, Servicio, Turno, Conversacion };
+module.exports = { Business, Professional, ProfessionalSchedule, Client, Service, Appointment, Conversation };

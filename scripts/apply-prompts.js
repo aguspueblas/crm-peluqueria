@@ -1,24 +1,24 @@
 'use strict';
 
 /**
- * Aplica los system_prompts y agente_nombre a los negocios en DB.
- * Correr después de hacer merge de feat/prompt-placeholders y aplicar migraciones.
+ * Applies system prompts and agent names to businesses in the DB.
+ * Run after merging feat/prompt-placeholders and applying migrations.
  *
- * Uso:
+ * Usage:
  *   node scripts/apply-prompts.js
  *   DATABASE_URL="..." node scripts/apply-prompts.js
  */
 
 require('dotenv').config();
 
-const { Negocio } = require('../src/models');
-const sequelize   = require('../src/config/sequelize');
+const { Business } = require('../src/models');
+const sequelize    = require('../src/config/sequelize');
 
 const PROMPTS = [
   {
-    nombre: 'Don Pelo',
-    agente_nombre: 'Mati',
-    system_prompt: `<identity>
+    name: 'Don Pelo',
+    agentName: 'Mati',
+    systemPrompt: `<identity>
 Sos {agente_nombre}, el asistente virtual de {negocio_nombre}. Sos una
 persona real que trabaja ahí — cercano, con onda, rioplatense. Mensajes
 cortos y directos, sin sonar a robot ni a call center. Nunca decís que sos una IA.
@@ -66,22 +66,22 @@ BÚSQUEDA DE HORARIOS:
 </como_atender>
 
 <confirmacion_final>
-Antes de llamar a crear_turno, mostrás el resumen y pedís confirmación:
+Antes de llamar a create_appointment, mostrás el resumen y pedís confirmación:
 "El turno queda reservado a nombre de [nombre], para [día] a las [hora]
 con [barbero]. ¿Confirmás?"
-Solo después del "sí" del cliente llamás a crear_turno.
+Solo después del "sí" del cliente llamás a create_appointment.
 </confirmacion_final>
 
 <regla_critica_crear_turno>
 PASO 1 · Tenés horario + barbero + nombre → mostrás confirmación final.
 PASO 2 · Cliente confirma ("dale", "sí", "va", "eso").
-PASO 3 · INMEDIATAMENTE llamás a crear_turno. No respondas nada todavía.
+PASO 3 · INMEDIATAMENTE llamás a create_appointment. No respondas nada todavía.
 PASO 4 · Esperás el resultado.
 PASO 5a · id válido → "¡Listo [nombre]! Turno confirmado para [día] a las [hora] con [barbero]. ¡Te esperamos! 💈"
 PASO 5b · falla → "Uy, tuve un problema técnico. ¿Lo intentamos de nuevo?"
 
 NUNCA:
-❌ Confirmar al cliente antes de tener el id de crear_turno.
+❌ Confirmar al cliente antes de tener el id de create_appointment.
 ❌ Responder entre el paso 2 y el paso 3.
 ❌ Asumir que el turno existe porque el cliente confirmó.
 </regla_critica_crear_turno>
@@ -98,23 +98,23 @@ NUNCA:
 
 async function main() {
   await sequelize.authenticate();
-  console.log('DB conectada.\n');
+  console.log('[db] connected\n');
 
-  for (const { nombre, agente_nombre, system_prompt } of PROMPTS) {
-    const negocio = await Negocio.findOne({ where: { nombre } });
-    if (!negocio) {
-      console.log(`[WARN] Negocio "${nombre}" no encontrado — saltando.`);
+  for (const { name, agentName, systemPrompt } of PROMPTS) {
+    const business = await Business.findOne({ where: { name } });
+    if (!business) {
+      console.log(`[warn] business "${name}" not found — skipping.`);
       continue;
     }
-    await negocio.update({ agente_nombre, system_prompt });
-    console.log(`[OK] ${nombre} — agente_nombre="${agente_nombre}", system_prompt actualizado.`);
+    await business.update({ agentName, systemPrompt });
+    console.log(`[ok] ${name} — agentName="${agentName}", systemPrompt updated.`);
   }
 
   await sequelize.close();
-  console.log('\nListo.');
+  console.log('\nDone.');
 }
 
 main().catch(err => {
-  console.error('Error:', err.message);
+  console.error('[error]', err.message);
   process.exit(1);
 });

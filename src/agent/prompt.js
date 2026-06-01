@@ -1,108 +1,108 @@
 'use strict';
 
-const { Servicio, Profesional } = require('../models');
-const clientesService           = require('../services/clientes.service');
+const { Service, Professional } = require('../models');
+const clientService             = require('../services/client.service');
 const { getArgentinaDateInfo }  = require('./dateUtils');
 
-const DEFAULT_RULES = 'Ayudá al cliente a reservar y cancelar turnos de forma amigable.';
+const DEFAULT_RULES = 'Help the client book and cancel appointments in a friendly way.';
 
 function resolvePlaceholders(template, vars) {
   return template.replace(/\{[^}]+\}/g, match => vars[match] ?? match);
 }
 
-async function buildSystemPrompt(negocio, senderName, fromPhone) {
-  const cliente = await clientesService.identificar(negocio.id, {
-    telefono: fromPhone,
-    nombre:   senderName,
+async function buildSystemPrompt(business, senderName, fromPhone) {
+  const client = await clientService.findOrCreate(business.id, {
+    phone: fromPhone,
+    name:  senderName,
   });
 
-  const [servicios, profesionales] = await Promise.all([
-    Servicio.findAll({
-      where:      { negocio_id: negocio.id },
-      attributes: ['id', 'nombre', 'duracion_minutos', 'precio'],
-      order:      [['duracion_minutos', 'ASC']],
+  const [services, professionals] = await Promise.all([
+    Service.findAll({
+      where:      { businessId: business.id },
+      attributes: ['id', 'name', 'durationMinutes', 'price'],
+      order:      [['durationMinutes', 'ASC']],
     }),
-    Profesional.findAll({
-      where:      { negocio_id: negocio.id, activo: true },
-      attributes: ['id', 'nombre'],
-      order:      [['nombre', 'ASC']],
+    Professional.findAll({
+      where:      { businessId: business.id, active: true },
+      attributes: ['id', 'name'],
+      order:      [['name', 'ASC']],
     }),
   ]);
 
-  const serviciosList = servicios.length > 0
-    ? servicios.map(s => {
-        const precio = s.precio ? ` · $${s.precio}` : '';
-        return `  - ${s.nombre} · ${s.duracion_minutos} min${precio} · id: ${s.id}`;
+  const servicesList = services.length > 0
+    ? services.map(s => {
+        const price = s.price ? ` · $${s.price}` : '';
+        return `  - ${s.name} · ${s.durationMinutes} min${price} · id: ${s.id}`;
       }).join('\n')
-    : '  (sin servicios cargados aún)';
+    : '  (no services loaded yet)';
 
-  const profesionalesList = profesionales.length > 0
-    ? profesionales.map(p => `  - ${p.nombre} (id: ${p.id})`).join('\n')
-    : '  (sin profesionales activos)';
+  const professionalsList = professionals.length > 0
+    ? professionals.map(p => `  - ${p.name} (id: ${p.id})`).join('\n')
+    : '  (no active professionals)';
 
   const { readable: todayReadable, isoDate: todayISO } = getArgentinaDateInfo();
 
-  const templateRaw    = negocio.system_prompt?.trim() ?? DEFAULT_RULES;
-  const agenteNombre   = negocio.agente_nombre ?? 'el asistente';
+  const templateRaw  = business.systemPrompt?.trim() ?? DEFAULT_RULES;
+  const agentName    = business.agentName ?? 'the assistant';
 
   const vars = {
-    '{agente_nombre}':        agenteNombre,
-    '{negocio_nombre}':       negocio.nombre,
-    '{negocio_rubro}':        negocio.rubro,
+    '{agente_nombre}':        agentName,
+    '{negocio_nombre}':       business.name,
+    '{negocio_rubro}':        business.sector,
     '{fecha_actual}':         `${todayReadable} (${todayISO})`,
-    '{cliente_id}':           String(cliente.id),
-    '{cliente_nombre}':       cliente.nombre ?? 'null',
+    '{cliente_id}':           String(client.id),
+    '{cliente_nombre}':       client.name ?? 'null',
     '{cliente_telefono}':     fromPhone,
-    '{servicios_lista}':      serviciosList,
-    '{profesionales_lista}':  profesionalesList,
+    '{servicios_lista}':      servicesList,
+    '{profesionales_lista}':  professionalsList,
   };
 
   const businessRules    = resolvePlaceholders(templateRaw, vars);
   const usesPlaceholders = Object.keys(vars).some(p => templateRaw.includes(p));
 
-  // Prompts modernos (con placeholders): el template del negocio es la única fuente de verdad.
+  // Modern prompts (with placeholders): the business template is the single source of truth.
   if (usesPlaceholders) return businessRules;
 
-  // Prompts legacy (sin placeholders): inyectamos datos dinámicos + instrucciones base.
-  const datosSection = `
+  // Legacy prompts (without placeholders): inject dynamic data + base instructions.
+  const dataSection = `
 
-DATOS DINÁMICOS:
-- Negocio: ${negocio.nombre} (${negocio.rubro})
-- Fecha actual (Argentina, UTC-3): ${todayReadable} (${todayISO})
-- Cliente: ${senderName} / ${fromPhone}
-- Servicios disponibles:
-${serviciosList}`;
+DYNAMIC DATA:
+- Business: ${business.name} (${business.sector})
+- Current date (Argentina, UTC-3): ${todayReadable} (${todayISO})
+- Client: ${senderName} / ${fromPhone}
+- Available services:
+${servicesList}`;
 
   return `
-${businessRules}${datosSection}
+${businessRules}${dataSection}
 
-FLUJO PARA AGENDAR UN TURNO:
-1. Si el cliente no dio su nombre, pedíselo UNA SOLA VEZ. Cuando lo dé, llamá a actualizar_cliente.
-2. Consultá disponibilidad con get_disponibilidad usando el servicio_id que corresponda.
-3. Presentá las opciones y esperá que el cliente confirme fecha, hora y (si aplica) profesional.
-4. Resumí el turno y preguntá "¿Confirmás?" explícitamente. Esperá respuesta.
-5. Solo si el cliente confirma: PRIMERO llamá a crear_turno y esperá el resultado. NUNCA confirmes de palabra sin haber recibido un id de turno válido.
-6. Si crear_turno devuelve conflicto, disculpate y ofrecé alternativas con get_disponibilidad.
-7. Tras crear_turno exitoso, confirmá al cliente según las reglas del negocio.
+APPOINTMENT BOOKING FLOW:
+1. If the client has not provided their name, ask ONCE. When they do, call update_client.
+2. Check availability with get_availability using the appropriate serviceId.
+3. Present options and wait for the client to confirm date, time and (if applicable) professional.
+4. Summarize the appointment and ask "Do you confirm?" explicitly. Wait for the response.
+5. Only if the client confirms: FIRST call create_appointment and wait for the result. NEVER confirm verbally without receiving a valid appointment ID.
+6. If create_appointment returns a conflict, apologize and offer alternatives with get_availability.
+7. After a successful create_appointment, confirm to the client according to the business rules.
 
-FLUJO PARA CANCELAR UN TURNO:
-1. Llamá a get_turnos_cliente para obtener los turnos activos.
-2. Mostrá los turnos en lenguaje natural (sin IDs).
-3. Esperá que el cliente indique cuál cancelar.
-4. Llamá a cancelar_turno con el ID correspondiente.
-5. Confirmá la cancelación.
+APPOINTMENT CANCELLATION FLOW:
+1. Call get_client_appointments to retrieve active appointments.
+2. Show the appointments in plain language (no IDs).
+3. Wait for the client to indicate which one to cancel.
+4. Call cancel_appointment with the corresponding ID.
+5. Confirm the cancellation.
 
-FORMATO DE FECHAS:
-- Con el cliente: lenguaje natural ("el lunes 25 de mayo a las 10:00").
-- Con las APIs: formato ISO sin zona horaria ("2026-05-25T10:00:00").
-- Nunca agendés en fechas pasadas.
+DATE FORMAT RULES:
+- With the client: natural language ("Monday May 25 at 10:00 am").
+- With the APIs: ISO format without timezone ("2026-05-25T10:00:00").
+- Never schedule past dates.
 
-REGLAS GENERALES:
-- Saludá al cliente por su nombre solo en el primer mensaje.
-- Respondé en español rioplatense, amigable y conciso. Mensajes cortos.
-- Nunca inventes disponibilidad — siempre consultá las tools.
-- No menciones IDs, nombres de funciones ni términos técnicos al cliente.
-- NUNCA le pidas el teléfono al cliente — ya lo tenés.
+GENERAL RULES:
+- Greet the client by name only in the first message.
+- Reply in a friendly and concise manner. Keep messages short.
+- Never invent availability — always query the tools.
+- Do not mention IDs, function names, or technical terms to the client.
+- NEVER ask the client for their phone number — you already have it.
 `.trim();
 }
 

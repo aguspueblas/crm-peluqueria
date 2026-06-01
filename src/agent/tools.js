@@ -2,98 +2,98 @@
 
 const TOOLS = [
   {
-    name: 'get_servicios',
-    description: 'Lista los servicios disponibles del negocio con nombre, duración y precio. Llamar al inicio si el cliente no especificó servicio.',
+    name: 'get_services',
+    description: 'List available services for the business (name, duration, price). Call at the start if the client has not specified a service.',
     input_schema: { type: 'object', properties: {}, required: [] },
   },
   {
-    name: 'get_disponibilidad',
-    description: 'Devuelve los horarios disponibles para un servicio en una fecha. Usar antes de reservar un turno.',
+    name: 'get_availability',
+    description: 'Return available time slots for a service on a given date. Use before booking an appointment.',
     input_schema: {
       type: 'object',
       properties: {
-        fecha:          { type: 'string',  description: 'Fecha en formato YYYY-MM-DD' },
-        servicio_id:    { type: 'integer', description: 'ID del servicio' },
-        profesional_id: { type: 'integer', description: 'ID del profesional (opcional)' },
+        date:           { type: 'string',  description: 'Date in YYYY-MM-DD format' },
+        serviceId:      { type: 'integer', description: 'Service ID' },
+        professionalId: { type: 'integer', description: 'Professional ID (optional)' },
       },
-      required: ['fecha', 'servicio_id'],
+      required: ['date', 'serviceId'],
     },
   },
   {
-    name: 'actualizar_cliente',
-    description: 'Actualiza el nombre de un cliente. Llamar cuando el cliente proporciona su nombre por primera vez antes de confirmar un turno.',
+    name: 'update_client',
+    description: 'Update the client\'s name. Call when the client provides their name for the first time before confirming an appointment.',
     input_schema: {
       type: 'object',
       properties: {
-        cliente_id: { type: 'integer', description: 'ID del cliente' },
-        nombre:     { type: 'string',  description: 'Nombre o apodo del cliente' },
+        clientId: { type: 'integer', description: 'Client ID' },
+        name:     { type: 'string',  description: 'Client name or nickname' },
       },
-      required: ['cliente_id', 'nombre'],
+      required: ['clientId', 'name'],
     },
   },
   {
-    name: 'crear_turno',
-    description: 'Reserva un turno. Solo llamar después de que el cliente confirmó servicio, profesional, fecha y hora.',
+    name: 'create_appointment',
+    description: 'Book an appointment. Only call after the client has confirmed service, professional, date, and time.',
     input_schema: {
       type: 'object',
       properties: {
-        cliente_id:     { type: 'integer' },
-        profesional_id: { type: 'integer' },
-        servicio_id:    { type: 'integer' },
-        fecha_hora:     { type: 'string', description: 'Formato: YYYY-MM-DDTHH:MM:00' },
-        direccion:      { type: 'string', description: 'Dirección del cliente (requerida para servicios a domicilio)' },
-        observaciones:  { type: 'string', description: 'Notas adicionales del turno (equipo, problema reportado, etc.)' },
+        clientId:       { type: 'integer' },
+        professionalId: { type: 'integer' },
+        serviceId:      { type: 'integer' },
+        scheduledAt:    { type: 'string', description: 'Format: YYYY-MM-DDTHH:MM:00' },
+        address:        { type: 'string', description: 'Client address (required for on-site services)' },
+        notes:          { type: 'string', description: 'Additional notes (equipment, reported issue, etc.)' },
       },
-      required: ['cliente_id', 'profesional_id', 'servicio_id', 'fecha_hora'],
+      required: ['clientId', 'professionalId', 'serviceId', 'scheduledAt'],
     },
   },
   {
-    name: 'notificar_admin',
-    description: 'Notifica al administrador sobre una situación que requiere su atención, sin interrumpir la conversación con el cliente. Usar cuando: el cliente no puede pagar digitalmente, se recibe un comprobante de pago, hay una queja, el servicio no tiene precio, no se puede identificar el servicio, el cliente tiene una consulta fuera del alcance del agente, o cualquier situación que Jonatan deba saber. El bot sigue respondiendo normalmente después de llamar esta función.',
+    name: 'notify_admin',
+    description: 'Notify the administrator about a situation that requires attention, without interrupting the conversation with the client. Use when: the client cannot pay digitally, a payment receipt is received, there is a complaint, the service has no price, the service cannot be identified, the client has a query outside the agent\'s scope, or any situation the admin should know about. The bot continues responding normally after calling this function.',
     input_schema: {
       type: 'object',
       properties: {
-        motivo: { type: 'string', description: 'Descripción breve de lo que ocurrió' },
+        reason: { type: 'string', description: 'Brief description of what happened' },
       },
-      required: ['motivo'],
+      required: ['reason'],
     },
   },
   {
-    name: 'derivar_a_admin',
-    description: 'Transfiere la conversación al administrador humano y detiene las respuestas del bot. Usar ÚNICAMENTE cuando el cliente pide explícitamente hablar con una persona real.',
+    name: 'delegate_to_admin',
+    description: 'Transfer the conversation to the human administrator and stop the bot from responding. Use ONLY when the client explicitly asks to speak with a real person.',
     input_schema: {
       type: 'object',
       properties: {
-        motivo: { type: 'string', description: 'Descripción breve del motivo' },
+        reason: { type: 'string', description: 'Brief description of the reason' },
       },
-      required: ['motivo'],
+      required: ['reason'],
     },
   },
   {
-    name: 'get_turnos_cliente',
-    description: 'Lista los turnos pendientes del cliente.',
+    name: 'get_client_appointments',
+    description: 'List the client\'s pending appointments.',
     input_schema: {
       type: 'object',
       properties: {
-        cliente_id: { type: 'integer' },
+        clientId: { type: 'integer' },
       },
-      required: ['cliente_id'],
+      required: ['clientId'],
     },
   },
   {
-    name: 'cancelar_turno',
-    description: 'Cancela un turno existente. Solo después de que el cliente confirmó que quiere cancelar.',
+    name: 'cancel_appointment',
+    description: 'Cancel an existing appointment. Only after the client has confirmed they want to cancel.',
     input_schema: {
       type: 'object',
       properties: {
-        turno_id: { type: 'integer' },
+        appointmentId: { type: 'integer' },
       },
-      required: ['turno_id'],
+      required: ['appointmentId'],
     },
   },
   {
-    name: 'get_profesionales',
-    description: 'Lista los profesionales activos del negocio. Usar cuando el cliente pide un profesional específico por nombre.',
+    name: 'get_professionals',
+    description: 'List the active professionals of the business. Use when the client asks for a specific professional by name.',
     input_schema: { type: 'object', properties: {}, required: [] },
   },
 ];

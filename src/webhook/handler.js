@@ -1,10 +1,10 @@
 'use strict';
 
-const { Negocio } = require('../models');
-const runner      = require('../agent/runner');
-const store       = require('../conversation/store');
+const { Business } = require('../models');
+const runner       = require('../agent/runner');
+const store        = require('../conversation/store');
 
-// Rate limiting: máx 5 mensajes por minuto por número de teléfono
+// Rate limiting: max 5 messages per minute per phone number (in-memory, resets on restart)
 const rateLimitStore = new Map();
 
 function isRateLimited(phone) {
@@ -21,7 +21,6 @@ function isRateLimited(phone) {
   return false;
 }
 
-// Limpia entradas viejas del rate limit store cada 5 minutos
 setInterval(() => {
   const now = Date.now();
   for (const [phone, entry] of rateLimitStore.entries()) {
@@ -34,13 +33,13 @@ async function handleIncoming(normalizedMessage, provider) {
 
   if (isRateLimited(from)) return;
 
-  const negocio = await Negocio.findOne({ where: { whatsapp_number: to, activo: true } });
-  if (!negocio) return;
+  const business = await Business.findOne({ where: { whatsappNumber: to, active: true } });
+  if (!business) return;
 
-  const estado = await store.getEstado(negocio.id, from);
-  if (estado === 'derivada') return;
+  const status = await store.getStatus(business.id, from);
+  if (status === 'derivada') return;
 
-  const reply = await runner.run({ negocio, from, senderName, message: body });
+  const reply = await runner.run({ business, from, senderName, message: body });
 
   await provider.send(from, to, reply);
 }

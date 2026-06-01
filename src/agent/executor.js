@@ -1,59 +1,59 @@
 'use strict';
 
-const serviciosService      = require('../services/servicios.service');
-const disponibilidadService = require('../services/disponibilidad.service');
-const clientesService       = require('../services/clientes.service');
-const turnosService         = require('../services/turnos.service');
-const profesionalesService  = require('../services/profesionales.service');
-const { validarNombreCliente } = require('../services/utils/nombre');
+const catalogService       = require('../services/catalog.service');
+const availabilityService  = require('../services/availability.service');
+const clientService        = require('../services/client.service');
+const appointmentService   = require('../services/appointment.service');
+const professionalService  = require('../services/professional.service');
+const { validateClientName } = require('../services/utils/client-name');
 
-async function execute(toolName, input, negocio_id) {
+async function execute(toolName, input, businessId) {
   try {
     switch (toolName) {
-      case 'get_servicios':
-        return await serviciosService.getAll(negocio_id);
+      case 'get_services':
+        return await catalogService.getAll(businessId);
 
-      case 'get_disponibilidad':
-        return await disponibilidadService.getSlots(negocio_id, {
-          fecha:          input.fecha,
-          servicio_id:    input.servicio_id,
-          profesional_id: input.profesional_id,
+      case 'get_availability':
+        return await availabilityService.getSlots(businessId, {
+          date:           input.date,
+          serviceId:      input.serviceId,
+          professionalId: input.professionalId,
         });
 
-      case 'actualizar_cliente': {
-        const nombreValido = validarNombreCliente(input.nombre);
-        await clientesService.updateNombre(negocio_id, input.cliente_id, nombreValido);
-        return { ok: true, nombre: nombreValido };
+      case 'update_client': {
+        const validName = validateClientName(input.name);
+        await clientService.updateName(businessId, input.clientId, validName);
+        return { ok: true, name: validName };
       }
 
-      case 'crear_turno':
-        return await turnosService.create(negocio_id, {
-          cliente_id:     input.cliente_id,
-          profesional_id: input.profesional_id,
-          servicio_id:    input.servicio_id,
-          fecha_hora:     input.fecha_hora,
-          direccion:      input.direccion ?? null,
-          observaciones:  input.observaciones ?? null,
+      case 'create_appointment':
+        return await appointmentService.create(businessId, {
+          clientId:       input.clientId,
+          professionalId: input.professionalId,
+          serviceId:      input.serviceId,
+          scheduledAt:    input.scheduledAt,
+          address:        input.address ?? null,
+          notes:          input.notes   ?? null,
         });
 
-      case 'get_turnos_cliente':
-        return await turnosService.getAll(negocio_id, {
-          cliente_id: input.cliente_id,
-          estado:     'pendiente',
+      case 'get_client_appointments':
+        return await appointmentService.getAll(businessId, {
+          clientId: input.clientId,
+          status:   'pendiente',
         });
 
-      case 'cancelar_turno':
-        await turnosService.cancel(negocio_id, input.turno_id);
+      case 'cancel_appointment':
+        await appointmentService.cancel(businessId, input.appointmentId);
         return { success: true };
 
-      case 'get_profesionales':
-        return await profesionalesService.getAll(negocio_id);
+      case 'get_professionals':
+        return await professionalService.getAll(businessId);
 
-      case 'notificar_admin':
-        return { ok: true, motivo: input.motivo };
+      case 'notify_admin':
+        return { ok: true, reason: input.reason };
 
-      case 'derivar_a_admin':
-        return { ok: true, derivado: true, motivo: input.motivo };
+      case 'delegate_to_admin':
+        return { ok: true, delegated: true, reason: input.reason };
 
       default:
         return { error: true, message: `Unknown tool: ${toolName}` };
