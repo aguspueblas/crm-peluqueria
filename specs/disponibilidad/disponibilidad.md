@@ -107,3 +107,7 @@ GET /api/disponibilidad?fecha=2026-05-19&servicio_id=1&profesional_id=1
 
 - Filtros por franja horaria en el endpoint
 - Disponibilidad multi-día
+
+---
+
+> **Nota de deuda técnica:** esta spec usa nomenclatura en español (`fecha`, `servicio_id`, etc.) que ya no coincide con el código refactorizado a inglés. Los nombres reales en el código son `date`, `serviceId`, `professionalId`. La migración de esta spec queda pendiente.

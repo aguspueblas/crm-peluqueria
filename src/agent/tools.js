@@ -7,8 +7,21 @@ const TOOLS = [
     input_schema: { type: 'object', properties: {}, required: [] },
   },
   {
+    name: 'get_next_slots',
+    description: 'DEFAULT tool to find availability. Returns the next N available time slots without needing a specific date. ALWAYS call this first when the client wants to book and has not named a specific date. Use get_availability ONLY if the client explicitly said a specific date (e.g. "I want Thursday").',
+    input_schema: {
+      type: 'object',
+      properties: {
+        serviceId:      { type: 'integer', description: 'Service ID' },
+        count:          { type: 'integer', description: 'Number of slots to return (default: 3, max: 10)' },
+        professionalId: { type: 'integer', description: 'Professional ID (optional)' },
+      },
+      required: ['serviceId'],
+    },
+  },
+  {
     name: 'get_availability',
-    description: 'Return available time slots for a service on a given date. Use before booking an appointment.',
+    description: 'Return available time slots for a service on a SPECIFIC date named by the client. Use ONLY when the client explicitly said a date (e.g. "I want Thursday", "next Monday"). For open-ended availability, use get_next_slots instead.',
     input_schema: {
       type: 'object',
       properties: {

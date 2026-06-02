@@ -13,6 +13,13 @@ async function execute(toolName, input, businessId) {
       case 'get_services':
         return await catalogService.getAll(businessId);
 
+      case 'get_next_slots':
+        return await availabilityService.getNextSlots(businessId, {
+          serviceId:      input.serviceId,
+          count:          input.count,
+          professionalId: input.professionalId,
+        });
+
       case 'get_availability':
         return await availabilityService.getSlots(businessId, {
           date:           input.date,
