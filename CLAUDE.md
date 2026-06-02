@@ -31,6 +31,7 @@ Las especificaciones de cada módulo están en `/specs/`.
 | Clientes (CRUD + find-or-create por teléfono) | Implementado |
 | Turnos (CRUD + validaciones de disponibilidad) | Implementado |
 | Disponibilidad (slots libres por fecha y servicio) | Implementado |
+| Disponibilidad multi-día sin fecha (`get_next_slots`) | Implementado |
 | Agente IA (Tool Use loop sobre el backend) | Implementado |
 | Webhook WhatsApp — Twilio (adapter pattern) | Implementado |
 | Historial de conversación en PostgreSQL (JSONB) | Implementado |
@@ -41,7 +42,7 @@ Las especificaciones de cada módulo están en `/specs/`.
 
 | Feature | Prioridad |
 |---|---|
-| Refinar comportamiento del agente (ver sección de pendientes de prompts) | Alta |
+| Probar flujo completo de reserva en WhatsApp (Expreso Polar + Don Pelo) | Alta |
 | Agregar endpoint admin para limpiar historial de conversación | Alta |
 | Agregar costo de tokens por negocio (tracking de uso de la IA) | Media |
 | Migrar a Meta WhatsApp Cloud API (~50-80 negocios activos) | Media |
@@ -51,18 +52,22 @@ Las especificaciones de cada módulo están en `/specs/`.
 
 ## 3b. Pendientes de refinamiento de prompts
 
-Problemas identificados durante las pruebas reales que hay que mejorar:
+Los prompts de Expreso Polar (v3) y Don Pelo fueron actualizados y están live en Railway (2026-06-01).
+Cambios aplicados: tool names en inglés (`create_appointment`, `update_client`, `notify_admin`, `delegate_to_admin`),
+`get_next_slots` como tool por defecto para disponibilidad.
 
-| Problema | Detalle |
+Pendiente: **validación en producción** — los problemas de abajo se corrigieron en los prompts pero no se probaron en WhatsApp todavía.
+
+| Problema | Estado |
 |---|---|
-| El agente no saluda al cliente | Arranca directo con la info del perfil, sin un saludo inicial cálido |
-| El agente confirma sin llamar a crear_turno | Haiku a veces ignora la instrucción — evaluar si reforzar el prompt o cambiar a Sonnet |
-| El precio aparece en el saludo aunque no se lo pidió | El agente muestra el precio del servicio aunque el cliente no preguntó |
+| El agente no saluda al cliente | Corregido en prompt — pendiente prueba |
+| El agente confirma sin llamar a `create_appointment` | Reforzado en `<regla_critica_crear_turno>` — pendiente prueba |
+| El precio aparece en el saludo aunque no se lo pidió | Corregido en `<servicios>` — pendiente prueba |
 
-**Estrategia sugerida para la próxima sesión:**
-1. Ajustar el `system_prompt` de Don Pelo para incluir un saludo inicial explícito
-2. Limpiar el historial entre pruebas (agregar endpoint `/api/admin/conversaciones/reset`)
-3. Probar el flujo completo de reserva y validar que crear_turno se llame correctamente
+**Para probar en la próxima sesión:**
+1. Limpiar historial de Expreso Polar: `DELETE /api/conversaciones` (endpoint a implementar) o directo en Railway
+2. Enviar mensaje desde WhatsApp al sandbox de Twilio
+3. Validar que el agente: saluda, llama `get_next_slots`, ofrece opciones reales, llama `create_appointment` después del "sí"
 
 ---
 

@@ -1,7 +1,7 @@
 # Spec — get_next_slots (Disponibilidad multi-día)
 
 **Módulo:** Disponibilidad
-**Estado:** Pendiente de implementación
+**Estado:** Implementado — commit `5678129` (2026-06-01)
 **Relacionado con:** [disponibilidad.md](disponibilidad.md), [../ia/agent.md](../ia/agent.md)
 
 > Esta spec usa nomenclatura en inglés, alineada con el código refactorizado (ver commit `0cc54b2`).
