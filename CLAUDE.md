@@ -50,6 +50,14 @@ Las especificaciones de cada módulo están en `/specs/`.
 
 ---
 
+## 3c. Pendientes a confirmar con el cliente (Jonatan)
+
+| Tema | Detalle |
+|---|---|
+| Cotización de materiales | El agente pregunta si el cliente quiere cotizar materiales pero no explica por qué no están incluidos en el precio de la instalación. Consultar a Jonatan cuál es la explicación real (¿varía según la instalación? ¿se define en la visita? ¿el cliente elige la calidad?) y agregarlo al prompt. |
+
+---
+
 ## 3b. Pendientes de refinamiento de prompts
 
 Los prompts de Expreso Polar (v3) y Don Pelo fueron actualizados y están live en Railway (2026-06-01).
