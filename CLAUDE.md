@@ -81,7 +81,7 @@ Pendiente: **validación en producción** — los problemas de abajo se corrigie
 | Reasignación automática | Al desactivar un profesional, los turnos se cancelan pero no se reasignan |
 | Ausencias puntuales | No existe el concepto de día no laborable o vacaciones |
 | Rate limiting del webhook | Rate limit en memoria — se pierde al reiniciar el proceso |
-| Error en create_appointment | Si falla después de 2-3 reintentos, el agente muestra "tuvimos un problema técnico". Mejorar: no exponer el error al cliente, llamar a `notify_admin` con el contexto completo (servicio, horario, datos del cliente) y responder algo como "Vamos a confirmar el turno manualmente, el equipo te contacta en breve". Requiere retry con backoff en el runner + instrucción en el prompt. |
+| Error en create_appointment | Si falla, el agente muestra "tuvimos un problema técnico". Implementar en `runner.js` (no en el prompt): reintentar hasta 2 veces silenciosamente; al tercer fallo, llamar `notifyDelegation` desde código con el contexto completo e inyectar en el historial un mensaje neutro ("El turno fue derivado al equipo") para que el LLM cierre la conversación con gracia sin exponer el error al cliente. |
 
 ---
 
