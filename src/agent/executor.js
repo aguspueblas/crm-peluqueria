@@ -33,15 +33,20 @@ async function execute(toolName, input, businessId) {
         return { ok: true, name: validName };
       }
 
-      case 'create_appointment':
+      case 'create_appointment': {
+        // Normalize scheduledAt: if no timezone offset, treat as Argentina (UTC-3)
+        const raw = input.scheduledAt ?? '';
+        const hasOffset = /Z$/.test(raw) || /[+-]\d{2}:\d{2}$/.test(raw);
+        const scheduledAt = hasOffset ? raw : `${raw}-03:00`;
         return await appointmentService.create(businessId, {
           clientId:       input.clientId,
           professionalId: input.professionalId,
           serviceId:      input.serviceId,
-          scheduledAt:    input.scheduledAt,
+          scheduledAt,
           address:        input.address ?? null,
           notes:          input.notes   ?? null,
         });
+      }
 
       case 'get_client_appointments':
         return await appointmentService.getAll(businessId, {

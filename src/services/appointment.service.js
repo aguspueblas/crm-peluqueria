@@ -113,9 +113,9 @@ async function checkWithinSchedule(professionalId, scheduledAt, durationMinutes)
   const result = await sequelize.query(
     `SELECT id FROM profesional_horarios
      WHERE profesional_id = :professionalId
-       AND dia_semana = EXTRACT(DOW FROM :scheduledAt::timestamp)
-       AND hora_inicio <= :scheduledAt::timestamp::time
-       AND hora_fin    >= (:scheduledAt::timestamp + :duration * INTERVAL '1 minute')::time
+       AND dia_semana = EXTRACT(DOW FROM :scheduledAt::timestamptz AT TIME ZONE 'America/Argentina/Buenos_Aires')
+       AND hora_inicio <= (:scheduledAt::timestamptz AT TIME ZONE 'America/Argentina/Buenos_Aires')::time
+       AND hora_fin    >= ((:scheduledAt::timestamptz AT TIME ZONE 'America/Argentina/Buenos_Aires') + :duration * INTERVAL '1 minute')::time
      LIMIT 1`,
     {
       replacements: { professionalId, scheduledAt, duration: durationMinutes },
