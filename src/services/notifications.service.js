@@ -39,7 +39,18 @@ async function notifyNewAppointment(business, appointment) {
     dateStyle: 'short',
     timeStyle: 'short',
   });
-  const body = `[${business.name}] New appointment\nClient: ${client?.name ?? 'unknown'} (${client?.phone ?? ''})\nDate: ${date}\nService: ${service?.name ?? ''}\nProfessional: ${professional?.name ?? ''}`;
+  const address  = appointment.address ?? '—';
+  const phone    = client?.phone ?? '—';
+  const body = [
+    `[${business.name}] Nuevo turno agendado`,
+    `Servicio: ${service?.name ?? '—'}`,
+    `Horario: ${date}`,
+    `Dirección: ${address}`,
+    `Profesional: ${professional?.name ?? '—'}`,
+    `Cliente: ${client?.name ?? '—'} (${phone})`,
+    ``,
+    `Pendiente: chequear envío de seña.`,
+  ].join('\n');
   await sendWhatsApp(business.adminPhone, from.replace('whatsapp:', ''), body);
   console.log(`[notifications] new appointment sent business=${business.id} admin=${business.adminPhone}`);
 }
