@@ -1,0 +1,3 @@
+ALTER TABLE negocios
+  ADD COLUMN IF NOT EXISTS panel_email    TEXT UNIQUE,
+  ADD COLUMN IF NOT EXISTS panel_password TEXT;

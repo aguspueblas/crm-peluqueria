@@ -13,6 +13,8 @@ const Business = sequelize.define('Business', {
   agentName:     { type: DataTypes.STRING(100),                    field: 'agente_nombre' },
   systemPrompt:  { type: DataTypes.TEXT,                           field: 'system_prompt' },
   adminPhone:    { type: DataTypes.STRING(20),                     field: 'admin_phone' },
+  panelEmail:    { type: DataTypes.STRING(200),                    field: 'panel_email' },
+  panelPassword: { type: DataTypes.TEXT,                           field: 'panel_password' },
 }, {
   tableName: 'negocios',
   createdAt: 'created_at',

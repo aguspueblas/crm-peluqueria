@@ -11,6 +11,7 @@ const store        = require('./conversation/store');
 const businessesAdminRoutes    = require('./routes/admin/businesses');
 const professionalsAdminRoutes = require('./routes/admin/professionals');
 const servicesAdminRoutes      = require('./routes/admin/services');
+const panelRoutes              = require('./routes/panel');
 const appointmentsRoutes       = require('./routes/appointments');
 const clientsRoutes            = require('./routes/clients');
 const availabilityRoutes       = require('./routes/availability');
@@ -46,6 +47,9 @@ if (process.env.NODE_ENV === 'development') {
     }
   });
 }
+
+// Panel routes — no auth middleware (login endpoint)
+app.use('/api/panel', panelRoutes);
 
 // Webhook — no tenant middleware, business resolved by whatsapp_number
 app.use('/webhook/whatsapp', webhookRoutes);
