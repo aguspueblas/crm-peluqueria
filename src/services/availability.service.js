@@ -195,8 +195,10 @@ async function getNextSlots(businessId, { serviceId, count = 3, professionalId =
     const weekday  = day.getDay();
     const isToday  = dateStr === todayArg;
 
+    let foundForDay = false;
+
     for (const prof of professionals) {
-      if (results.length >= count) break;
+      if (results.length >= count || foundForDay) break;
 
       const daySchedules = prof.schedules.filter(s => s.weekday === weekday);
       if (daySchedules.length === 0) continue;
@@ -206,11 +208,13 @@ async function getNextSlots(businessId, { serviceId, count = 3, professionalId =
       );
 
       for (const schedule of daySchedules) {
+        if (foundForDay) break;
         for (const time of generateSlots(schedule.startTime, schedule.endTime, durationMinutes)) {
-          if (results.length >= count) break;
+          if (foundForDay) break;
           if (isToday && time <= nowTimeArg) continue;
           if (!isBooked(time, bookedForProfDay, durationMinutes)) {
             results.push({ date: dateStr, time, professional: { id: prof.id, name: prof.name } });
+            foundForDay = true;
           }
         }
       }
