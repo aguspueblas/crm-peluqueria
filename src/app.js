@@ -3,6 +3,7 @@
 require('dotenv').config();
 
 const express      = require('express');
+const cors         = require('cors');
 const auth         = require('./middlewares/auth');
 const tenant       = require('./middlewares/tenant');
 const errorHandler = require('./middlewares/errorHandler');
@@ -21,6 +22,11 @@ const webhookRoutes            = require('./webhook');
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
+app.use(cors({
+  origin: process.env.PANEL_URL ?? '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'X-Api-Key', 'X-Admin-Secret'],
+}));
 app.use(express.json());
 
 app.get('/health', (_req, res) => {
