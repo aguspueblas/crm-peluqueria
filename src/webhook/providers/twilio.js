@@ -28,9 +28,12 @@ async function send(to, from, text) {
   });
 }
 
-function validateSignature(req, webhookUrl) {
+function validateSignature(req) {
   if (process.env.NODE_ENV === 'development') return true;
-  const url = webhookUrl ?? process.env.TWILIO_WEBHOOK_URL;
+  // Derive URL from request so it matches exactly what Twilio signed
+  const proto = req.headers['x-forwarded-proto'] ?? req.protocol;
+  const host  = req.headers['host'];
+  const url   = `${proto}://${host}${req.originalUrl}`;
   return twilio.validateRequest(
     process.env.TWILIO_AUTH_TOKEN,
     req.headers['x-twilio-signature'] ?? '',

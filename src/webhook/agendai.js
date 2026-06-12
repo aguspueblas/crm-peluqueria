@@ -54,8 +54,10 @@ async function handleAdminMessage(normalizedMessage, provider) {
 router.post('/', express.urlencoded({ extended: false }), async (req, res) => {
   console.log('[agendai] request received');
 
-  const sigValid = twilio.validateSignature(req, process.env.AGENDAI_WEBHOOK_URL);
-  console.log(`[agendai] signature valid=${sigValid} url=${process.env.AGENDAI_WEBHOOK_URL}`);
+  const proto    = req.headers['x-forwarded-proto'] ?? req.protocol;
+  const fullUrl  = `${proto}://${req.headers['host']}${req.originalUrl}`;
+  const sigValid = twilio.validateSignature(req);
+  console.log(`[agendai] signature valid=${sigValid} url=${fullUrl}`);
 
   if (!sigValid) {
     return res.status(403).end();
