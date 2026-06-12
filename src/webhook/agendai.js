@@ -52,7 +52,7 @@ async function handleAdminMessage(normalizedMessage, provider) {
 }
 
 router.post('/', express.urlencoded({ extended: false }), async (req, res) => {
-  if (!twilio.validateSignature(req)) {
+  if (!twilio.validateSignature(req, process.env.AGENDAI_WEBHOOK_URL)) {
     return res.status(403).end();
   }
 

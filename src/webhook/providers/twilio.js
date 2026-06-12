@@ -28,12 +28,13 @@ async function send(to, from, text) {
   });
 }
 
-function validateSignature(req) {
+function validateSignature(req, webhookUrl) {
   if (process.env.NODE_ENV === 'development') return true;
+  const url = webhookUrl ?? process.env.TWILIO_WEBHOOK_URL;
   return twilio.validateRequest(
     process.env.TWILIO_AUTH_TOKEN,
     req.headers['x-twilio-signature'] ?? '',
-    process.env.TWILIO_WEBHOOK_URL,
+    url,
     req.body
   );
 }
