@@ -42,6 +42,10 @@ async function create(businessId, { clientId, professionalId, serviceId, schedul
   if (!clientId || !professionalId || !serviceId || !scheduledAt)
     throw badRequest('clientId, professionalId, serviceId and scheduledAt are required');
 
+  // Normalize Argentina timezone if no offset provided
+  const hasOffset = /Z$/.test(scheduledAt) || /[+-]\d{2}:\d{2}$/.test(scheduledAt);
+  if (!hasOffset) scheduledAt = `${scheduledAt}-03:00`;
+
   if (new Date(scheduledAt) <= new Date())
     throw badRequest('Appointment date must be in the future');
 
@@ -72,7 +76,7 @@ async function create(businessId, { clientId, professionalId, serviceId, schedul
   return getById(businessId, appointment.id);
 }
 
-async function update(businessId, id, { scheduledAt, status }) {
+async function update(businessId, id, { scheduledAt, status, notes }) {
   const appointment = await getById(businessId, id);
 
   if (status !== undefined) {
@@ -98,6 +102,7 @@ async function update(businessId, id, { scheduledAt, status }) {
   await appointment.update({
     ...(scheduledAt !== undefined && { scheduledAt }),
     ...(status      !== undefined && { status }),
+    ...(notes       !== undefined && { notes }),
   });
   return getById(businessId, id);
 }

@@ -18,6 +18,7 @@ const clientsRoutes            = require('./routes/clients');
 const availabilityRoutes       = require('./routes/availability');
 const servicesRoutes           = require('./routes/services');
 const webhookRoutes            = require('./webhook');
+const agendaiRoutes            = require('./webhook/agendai');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -57,8 +58,11 @@ if (process.env.NODE_ENV === 'development') {
 // Panel routes — no auth middleware (login endpoint)
 app.use('/api/panel', panelRoutes);
 
-// Webhook — no tenant middleware, business resolved by whatsapp_number
+// Customer agent — business resolved by whatsapp_number (to)
 app.use('/webhook/whatsapp', webhookRoutes);
+
+// AgendAI — admin agent, admin resolved by sender phone (from)
+app.use('/webhook/agendai', agendaiRoutes);
 
 // All other routes: require valid X-Api-Key (tenant resolution)
 app.use(tenant);
@@ -72,8 +76,9 @@ app.use('/api/admin/services',        servicesAdminRoutes);
 
 app.use(errorHandler);
 
-// Start conversation cleanup scheduler after all middleware is set up
+// Start conversation cleanup schedulers
 store.startCleanupScheduler();
+require('./conversation/admin-store').startCleanupScheduler();
 
 app.listen(PORT, () => {
   console.log(`[server] running on http://localhost:${PORT}`);

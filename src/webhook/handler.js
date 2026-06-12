@@ -1,8 +1,8 @@
 'use strict';
 
 const { Business } = require('../models');
-const runner       = require('../agent/runner');
-const store        = require('../conversation/store');
+const runner        = require('../agent/runner');
+const store         = require('../conversation/store');
 
 // Rate limiting: max 5 messages per minute per phone number (in-memory, resets on restart)
 const rateLimitStore = new Map();
@@ -40,7 +40,6 @@ async function handleIncoming(normalizedMessage, provider) {
   if (status === 'derivada') return;
 
   const reply = await runner.run({ business, from, senderName, message: body });
-
   await provider.send(from, to, reply);
 }
 
