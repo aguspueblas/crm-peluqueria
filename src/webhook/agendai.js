@@ -52,17 +52,23 @@ async function handleAdminMessage(normalizedMessage, provider) {
 }
 
 router.post('/', express.urlencoded({ extended: false }), async (req, res) => {
-  if (!twilio.validateSignature(req, process.env.AGENDAI_WEBHOOK_URL)) {
+  console.log('[agendai] request received');
+
+  const sigValid = twilio.validateSignature(req, process.env.AGENDAI_WEBHOOK_URL);
+  console.log(`[agendai] signature valid=${sigValid} url=${process.env.AGENDAI_WEBHOOK_URL}`);
+
+  if (!sigValid) {
     return res.status(403).end();
   }
 
   const message = twilio.parseIncoming(req);
+  console.log(`[agendai] parsed message from=${message?.from} body="${message?.body}"`);
   if (!message) return res.status(200).end();
 
   res.status(200).end();
 
   handleAdminMessage(message, twilio).catch(err => {
-    console.error('[agendai] error procesando mensaje:', err.message);
+    console.error('[agendai] error procesando mensaje:', err.message, err.stack);
   });
 });
 
