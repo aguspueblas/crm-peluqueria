@@ -97,6 +97,17 @@ const ADMIN_TOOLS = [
       properties: {},
     },
   },
+  {
+    name: 'unblock_client',
+    description: 'Unblock a client whose conversation was delegated to the admin, so they can talk to the bot again. Use when the admin has finished handling the client directly and wants to re-enable the bot for that number.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        clientPhone: { type: 'string', description: 'Client phone number (e.g. +5491155556666)' },
+      },
+      required: ['clientPhone'],
+    },
+  },
 ];
 
 module.exports = { ADMIN_TOOLS };

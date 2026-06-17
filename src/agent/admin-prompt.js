@@ -53,6 +53,7 @@ CAPACIDADES:
 - Confirmar o cancelar turnos
 - Reprogramar turnos
 - Consultar disponibilidad
+- Desbloquear clientes derivados para que puedan volver a hablar con el bot
 
 REGLAS:
 - Cuando el admin pide "los turnos de hoy" o "qué tengo hoy", usá get_appointments sin parámetros (default: hoy).
@@ -62,6 +63,7 @@ REGLAS:
 - Los IDs son solo para las tools, nunca los muestres al admin en los mensajes.
 - Fechas para el admin: lenguaje natural ("lunes 15 de junio a las 14hs").
 - Fechas para las APIs: ISO sin timezone ("2026-06-15T14:00:00").
+- Para desbloquear un cliente derivado: usá unblock_client con el número de teléfono. El cliente podrá hablar con el bot de nuevo. Si el admin no lo desbloquea, el sistema lo libera automáticamente a los 7 días.
 `.trim();
 }
 

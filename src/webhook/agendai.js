@@ -52,19 +52,11 @@ async function handleAdminMessage(normalizedMessage, provider) {
 }
 
 router.post('/', express.urlencoded({ extended: false }), async (req, res) => {
-  console.log('[agendai] request received');
-
-  const proto    = req.headers['x-forwarded-proto'] ?? req.protocol;
-  const fullUrl  = `${proto}://${req.headers['host']}${req.originalUrl}`;
-  const sigValid = twilio.validateSignature(req);
-  console.log(`[agendai] signature valid=${sigValid} url=${fullUrl}`);
-
-  if (!sigValid) {
+  if (!twilio.validateSignature(req)) {
     return res.status(403).end();
   }
 
   const message = twilio.parseIncoming(req);
-  console.log(`[agendai] parsed message from=${message?.from} body="${message?.body}"`);
   if (!message) return res.status(200).end();
 
   res.status(200).end();

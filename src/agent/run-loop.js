@@ -20,7 +20,8 @@ const DEFAULT_MAX_INPUT_LEN  = 1000;
  * @param {Function} opts.execute         - async (toolName, input, businessId) => result
  * @param {Function} opts.buildPrompt     - async (business, from) => systemPrompt string
  * @param {object}   opts.store           - { load, save, prune, markDelegated? }
- * @param {Function} [opts.onSpecialTool] - async ({ toolName, input, result, business, from }) => { delegated: bool }
+ * @param {Function} [opts.onSpecialTool]        - async ({ toolName, input, result, business, from }) => { delegated: bool }
+ * @param {boolean}  [opts.finalTurnOnDelegate]  - if true, make one extra Anthropic call after delegation so the bot can say goodbye; default false (silent)
  * @param {string}   [opts.model]
  * @param {number}   [opts.maxTokens]
  * @param {number}   [opts.maxIterations]
@@ -35,6 +36,7 @@ async function runLoop({
   buildPrompt,
   store,
   onSpecialTool,
+  finalTurnOnDelegate = false,
   model         = DEFAULT_MODEL,
   maxTokens     = DEFAULT_MAX_TOKENS,
   maxIterations = DEFAULT_MAX_ITERATIONS,
@@ -49,6 +51,7 @@ async function runLoop({
 
   let iterations = 0;
 
+  try {
   while (iterations < maxIterations) {
     iterations++;
 
@@ -99,22 +102,30 @@ async function runLoop({
       messages.push({ role: 'user', content: toolResults });
 
       if (delegated) {
-        const finalResponse = await anthropic.messages.create({
-          model,
-          max_tokens: maxTokens,
-          system:     systemPrompt,
-          tools,
-          messages,
-        });
-        const text = finalResponse.content.find(b => b.type === 'text')?.text ?? '';
-        history.push({ role: 'assistant', content: text });
+        if (finalTurnOnDelegate) {
+          const finalResponse = await anthropic.messages.create({
+            model,
+            max_tokens: maxTokens,
+            system:     systemPrompt,
+            tools,
+            messages,
+          });
+          const text = finalResponse.content.find(b => b.type === 'text')?.text ?? '';
+          history.push({ role: 'assistant', content: text });
+          await store.save(business.id, from, history);
+          return text;
+        }
         await store.save(business.id, from, history);
-        return text;
+        return null;
       }
     }
   }
 
-  return 'An error occurred while processing your message. Please try again.';
+  } catch (err) {
+    console.error(`[run-loop] unhandled error business=${business.id}: ${err.message}`, err.stack);
+  }
+
+  return null;
 }
 
 module.exports = { runLoop };

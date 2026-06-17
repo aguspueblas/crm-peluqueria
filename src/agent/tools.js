@@ -77,7 +77,9 @@ const TOOLS = [
     input_schema: {
       type: 'object',
       properties: {
-        reason: { type: 'string', description: 'Brief description of the reason' },
+        reason:      { type: 'string', description: 'Full summary of the conversation: what the client asked, what was offered, why handoff is needed. Be specific — the admin will use this to contact the client directly.' },
+        clientName:  { type: 'string', description: 'Client name if known' },
+        clientPhone: { type: 'string', description: 'Client phone number if known' },
       },
       required: ['reason'],
     },

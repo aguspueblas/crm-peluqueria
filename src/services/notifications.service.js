@@ -22,13 +22,17 @@ async function sendWhatsApp(to, from, body) {
   }
 }
 
-async function notifyDelegation(business, clientPhone, reason, adminPhones = []) {
-  const phones = adminPhones.length ? adminPhones : (business.adminPhone ? [business.adminPhone] : []);
-  if (!phones.length) return;
-  const from = (process.env.AGENDAI_WHATSAPP_FROM ?? process.env.TWILIO_WHATSAPP_FROM ?? `whatsapp:${business.whatsappNumber}`).replace('whatsapp:', '');
-  const body = `[${business.name}] Handoff pending\nClient: ${clientPhone}\nReason: ${reason}`;
-  await Promise.all(phones.map(phone => sendWhatsApp(phone, from, body)));
-  console.log(`[notifications] delegation sent business=${business.id} admins=${phones.join(',')}`);
+async function notifyDelegation(business, clientPhone, reason, adminPhones = [], clientName = null) {
+  if (!adminPhones.length) return;
+  const from = (process.env.AGENDAI_WHATSAPP_FROM ?? '').replace('whatsapp:', '');
+  if (!from) {
+    console.error('[notifications] AGENDAI_WHATSAPP_FROM not set — skipping delegation notify');
+    return;
+  }
+  const clientLabel = clientName ? `${clientName} (${clientPhone})` : clientPhone;
+  const body = `[${business.name}] Intervención necesaria\nCliente: ${clientLabel}\n\n${reason}`;
+  await Promise.all(adminPhones.map(phone => sendWhatsApp(phone, from, body)));
+  console.log(`[notifications] delegation sent business=${business.id} admins=${adminPhones.join(',')}`);
 }
 
 async function notifyNewAppointment(business, appointment, adminPhones = []) {
@@ -55,4 +59,16 @@ async function notifyNewAppointment(business, appointment, adminPhones = []) {
   console.log(`[notifications] new appointment sent business=${business.id} admins=${phones.join(',')}`);
 }
 
-module.exports = { sendWhatsApp, notifyDelegation, notifyNewAppointment };
+async function notifyBotError(business, clientPhone, adminPhones = []) {
+  if (!adminPhones.length) return;
+  const from = (process.env.AGENDAI_WHATSAPP_FROM ?? '').replace('whatsapp:', '');
+  if (!from) {
+    console.error('[notifications] AGENDAI_WHATSAPP_FROM not set — skipping bot error notify');
+    return;
+  }
+  const body = `[${business.name}] El bot no pudo responder a ${clientPhone}.\nPuede necesitar atención manual.`;
+  await Promise.all(adminPhones.map(phone => sendWhatsApp(phone, from, body)));
+  console.log(`[notifications] bot error sent business=${business.id} client=${clientPhone}`);
+}
+
+module.exports = { sendWhatsApp, notifyDelegation, notifyNewAppointment, notifyBotError };

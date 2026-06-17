@@ -12,7 +12,7 @@ async function findByPhone(phone) {
   return admin ?? null;
 }
 
-async function getAdminPhones(businessId) {
+async function getAdmins(businessId) {
   const admins = await AdminUser.findAll({
     include: [{
       model:      Business,
@@ -22,6 +22,11 @@ async function getAdminPhones(businessId) {
     }],
     where: { activo: true },
   });
+  return admins.map(a => ({ id: a.id, telefono: a.telefono }));
+}
+
+async function getAdminPhones(businessId) {
+  const admins = await getAdmins(businessId);
   return admins.map(a => a.telefono);
 }
 
@@ -43,4 +48,4 @@ async function register(nombre, telefono, businessId) {
   return admin;
 }
 
-module.exports = { findByPhone, getAdminPhones, register };
+module.exports = { findByPhone, getAdmins, getAdminPhones, register };

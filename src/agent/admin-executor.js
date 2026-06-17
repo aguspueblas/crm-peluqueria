@@ -4,6 +4,7 @@ const appointmentService  = require('../services/appointment.service');
 const availabilityService = require('../services/availability.service');
 const catalogService      = require('../services/catalog.service');
 const clientService       = require('../services/client.service');
+const store               = require('../conversation/store');
 
 function todayAR() {
   return new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Argentina/Buenos_Aires' });
@@ -60,6 +61,11 @@ async function execute(toolName, input, businessId) {
 
       case 'get_services':
         return await catalogService.getAll(businessId);
+
+      case 'unblock_client': {
+        await store.unblock(businessId, input.clientPhone);
+        return { success: true, clientPhone: input.clientPhone };
+      }
 
       default:
         return { error: true, message: `Unknown tool: ${toolName}` };

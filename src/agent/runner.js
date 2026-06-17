@@ -5,11 +5,15 @@ const { TOOLS }                                  = require('./tools');
 const { execute }                                = require('./executor');
 const { buildSystemPrompt }                      = require('./prompt');
 const store                                      = require('../conversation/store');
-const { notifyDelegation, notifyNewAppointment } = require('../services/notifications.service');
+const adminStore                                 = require('../conversation/admin-store');
+const { notifyDelegation, notifyNewAppointment, notifyBotError } = require('../services/notifications.service');
 const adminService                               = require('../services/admin.service');
 
 async function run({ business, from, senderName, message }) {
-  const adminPhones = await adminService.getAdminPhones(business.id);
+  const admins      = await adminService.getAdmins(business.id);
+  const adminPhones = admins.map(a => a.telefono);
+
+  let delegated = false;
 
   const onSpecialTool = async ({ toolName, input, result }) => {
     if (toolName === 'notify_admin') {
@@ -24,7 +28,27 @@ async function run({ business, from, senderName, message }) {
     }
     if (toolName === 'delegate_to_admin') {
       await store.markDelegated(business.id, from);
-      notifyDelegation(business, from, input.reason ?? '', adminPhones).catch(err =>
+
+      const clientName  = input.clientName  ?? null;
+      const clientPhone = input.clientPhone ?? from;
+      const reason      = input.reason ?? '';
+
+      // Inject delegation notice into each admin's conversation history
+      for (const admin of admins) {
+        try {
+          const history = await adminStore.load(admin.id, business.id);
+          const clientLabel = clientName ? `${clientName} (${clientPhone})` : clientPhone;
+          const notifText = `[Derivación — ${business.name}] ${clientLabel} solicitó atención personal.\n\nContexto: ${reason}`;
+          history.push({ role: 'user',      content: notifText });
+          history.push({ role: 'assistant', content: 'Entendido. El cliente fue derivado para atención personal.' });
+          await adminStore.save(admin.id, business.id, history);
+        } catch (err) {
+          console.error(`[runner] admin history inject failed admin=${admin.id}: ${err.message}`);
+        }
+      }
+
+      delegated = true;
+      notifyDelegation(business, clientPhone, reason, adminPhones, clientName).catch(err =>
         console.error(`[runner] delegate notification failed: ${err.message}`)
       );
       return { delegated: true };
@@ -32,16 +56,25 @@ async function run({ business, from, senderName, message }) {
     return { delegated: false };
   };
 
-  return runLoop({
+  const reply = await runLoop({
     business,
     from,
     message,
-    tools:        TOOLS,
+    tools:               TOOLS,
     execute,
-    buildPrompt:  (b, f) => buildSystemPrompt(b, senderName, f),
+    buildPrompt:         (b, f) => buildSystemPrompt(b, senderName, f),
     store,
     onSpecialTool,
+    finalTurnOnDelegate: false,
   });
+
+  if (reply === null && !delegated) {
+    notifyBotError(business, from, adminPhones).catch(err =>
+      console.error(`[runner] bot error notify failed: ${err.message}`)
+    );
+  }
+
+  return reply;
 }
 
 module.exports = { run };

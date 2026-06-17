@@ -40,7 +40,7 @@ async function handleIncoming(normalizedMessage, provider) {
   if (status === 'derivada') return;
 
   const reply = await runner.run({ business, from, senderName, message: body });
-  await provider.send(from, to, reply);
+  if (reply) await provider.send(from, to, reply);
 }
 
 module.exports = { handleIncoming };
